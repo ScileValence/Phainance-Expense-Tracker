@@ -59,59 +59,6 @@
 
 ---
 
-## ⚙️ Installation Guide  
-
-### 🧩 Backend (Spring Boot)
-
-cd backend
-
-# Update credentials in application.properties
-spring.datasource.username=root
-spring.datasource.password=root
-
-# Run backend
-mvn spring-boot:run
-Backend URL: 👉 http://localhost:8080
-
-💻 Frontend (React + Vite)
-bash
-Copy code
-cd frontend
-npm install
-npm run dev
-Frontend URL: 👉 http://localhost:5173
-
-🔑 Backend Configuration (application.properties)
-properties
-Copy code
-spring.datasource.url=jdbc:mysql://localhost:3306/phainance
-spring.datasource.username=root
-spring.datasource.password=root
-spring.jpa.hibernate.ddl-auto=update
-spring.jpa.show-sql=true
-server.port=8080
-
-📊 Dashboard Overview
-Section	Description
-Overview Cards	Show total spent, budget, and remaining
-Progress Bar	Visualize budget usage
-Analytics Charts	Pie + Line charts powered by Recharts
-Expense Table	Editable month-filtered table
-Global Month Selector	Syncs data across dashboard and budget
-
-✨ Notable Highlights
-🔄 Global month synchronization via localStorage
-
-🔔 Rounded Toast notifications for all actions
-
-🌗 Light/Dark theme toggle with smooth transitions
-
-🧠 JWT validation and auto-logout
-
-💡 Unified animations and typography
-
-🎨 Refined modern layout and colors
-
 🧾 Changelog
 See CHANGELOG.md for version history.
 Current Version: v1.6.0
