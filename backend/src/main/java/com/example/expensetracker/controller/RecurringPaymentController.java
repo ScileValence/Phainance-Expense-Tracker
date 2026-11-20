@@ -7,6 +7,7 @@ import com.example.expensetracker.repository.CategoryRepository;
 import com.example.expensetracker.repository.RecurringPaymentRepository;
 import com.example.expensetracker.repository.UserRepository;
 import com.example.expensetracker.service.JwtService;
+import com.example.expensetracker.service.NotificationService;
 import com.example.expensetracker.service.RecurringPaymentService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.ResponseEntity;
@@ -30,19 +31,22 @@ public class RecurringPaymentController {
     private final CategoryRepository categoryRepository;
     private final JwtService jwtService;
     private final UserRepository userRepository;
+    private final NotificationService notifications;
 
     public RecurringPaymentController(
             RecurringPaymentRepository recurringRepository,
             RecurringPaymentService recurringService,
             CategoryRepository categoryRepository,
             JwtService jwtService,
-            UserRepository userRepository
+            UserRepository userRepository,
+            NotificationService notifications
     ) {
         this.recurringRepository = recurringRepository;
         this.recurringService = recurringService;
         this.categoryRepository = categoryRepository;
         this.jwtService = jwtService;
         this.userRepository = userRepository;
+        this.notifications = notifications;
     }
 
     private User getUserFromRequest(HttpServletRequest request) {
@@ -142,9 +146,12 @@ public class RecurringPaymentController {
         if (or.isEmpty()) return ResponseEntity.notFound().build();
 
         RecurringPayment r = or.get();
+        Map<String, String> before = notifications.snapshot(r);
         String err = apply(dto, r);
         if (err != null) return bad(err);
-        return ResponseEntity.ok(recurringRepository.save(r));
+        RecurringPayment saved = recurringRepository.save(r);
+        notifications.notifyEdited(user, saved, before); // edited -> email (only if something changed)
+        return ResponseEntity.ok(saved);
     }
 
     @PostMapping("/{id}/confirm")
@@ -154,7 +161,11 @@ public class RecurringPaymentController {
 
         Optional<RecurringPayment> or = findOwned(id, user);
         if (or.isEmpty()) return ResponseEntity.notFound().build();
-        return ResponseEntity.ok(recurringService.confirm(or.get()));
+        RecurringPayment r = or.get();
+        LocalDate paid = r.getNextDueDate();
+        RecurringPayment saved = recurringService.confirm(r);
+        notifications.notifyPaid(user, saved, paid); // paid -> email
+        return ResponseEntity.ok(saved);
     }
 
     @PostMapping("/{id}/skip")
@@ -164,7 +175,11 @@ public class RecurringPaymentController {
 
         Optional<RecurringPayment> or = findOwned(id, user);
         if (or.isEmpty()) return ResponseEntity.notFound().build();
-        return ResponseEntity.ok(recurringService.skip(or.get()));
+        RecurringPayment r = or.get();
+        LocalDate skipped = r.getNextDueDate();
+        RecurringPayment saved = recurringService.skip(r);
+        notifications.notifySkipped(user, saved, skipped); // skipped -> email
+        return ResponseEntity.ok(saved);
     }
 
     @PostMapping("/{id}/toggle")
@@ -176,8 +191,12 @@ public class RecurringPaymentController {
         if (or.isEmpty()) return ResponseEntity.notFound().build();
 
         RecurringPayment r = or.get();
-        r.setActive(!r.isActive());
-        return ResponseEntity.ok(recurringRepository.save(r));
+        boolean wasActive = r.isActive();
+        r.setActive(!wasActive);
+        RecurringPayment saved = recurringRepository.save(r);
+        if (wasActive && !saved.isActive()) notifications.notifyPaused(user, saved); // paused -> email
+        else if (!wasActive && saved.isActive()) notifications.notifyResumed(user, saved); // resumed -> email
+        return ResponseEntity.ok(saved);
     }
 
     @DeleteMapping("/{id}")
@@ -187,7 +206,9 @@ public class RecurringPaymentController {
 
         Optional<RecurringPayment> or = findOwned(id, user);
         if (or.isEmpty()) return ResponseEntity.notFound().build();
-        recurringRepository.delete(or.get());
+        RecurringPayment r = or.get();
+        recurringRepository.delete(r);
+        notifications.notifyStopped(user, r); // stopped -> email
         return ResponseEntity.noContent().build();
     }
 

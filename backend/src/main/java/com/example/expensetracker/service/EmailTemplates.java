@@ -2,6 +2,7 @@ package com.example.expensetracker.service;
 
 import org.springframework.web.util.HtmlUtils;
 
+import java.util.List;
 import java.util.Map;
 
 /** Branded HTML + plain-text email bodies. Inline CSS and tables only, so they render in Gmail/Outlook/Apple Mail. */
@@ -56,6 +57,153 @@ public final class EmailTemplates {
         return new Email(subject, text, layout("Payment due: " + title, body, footer));
     }
 
+    /** Sent when a recurring payment is paused. */
+    public static Email paymentPaused(
+            String appUrl, String username, String title, String amount,
+            String category, String schedule, String nextDate
+    ) {
+        String subject = title + " was paused";
+
+        String text = "Hi " + username + ",\n\n"
+                + "Your " + title + " payment of " + amount + " is now paused. We won't send reminders for it until you resume it.\n"
+                + (category == null ? "" : "Category: " + category + "\n")
+                + schedule + ".\n"
+                + (nextDate == null || nextDate.isBlank() ? "" : "Next due: " + nextDate + " (kept while paused).\n")
+                + "\nResume it any time from Recurring in Phainance:\n" + appUrl + "/recurring\n\n"
+                + "You're getting this because email reminders are on for your Phainance account. "
+                + "Turn them off in Recurring > Reminder alerts.\n\n— Phainance";
+
+        String rows = row("Status", statusPill("Paused", "#FFF1D6", "#8A5A00"))
+                + (category == null ? "" : row("Category", esc(category)))
+                + row("Repeats", esc(schedule))
+                + (nextDate == null || nextDate.isBlank() ? "" : row("Next due", esc(nextDate) + " <span style=\"color:" + MUTED + ";\">(kept while paused)</span>"));
+
+        String body = "<p style=\"margin:0 0 6px;font-size:13px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:" + MUTED + ";\">Payment paused</p>"
+                + "<h1 style=\"margin:0 0 4px;font-size:26px;line-height:1.2;color:" + INK + ";\">" + esc(title) + "</h1>"
+                + "<p style=\"margin:0 0 22px;font-size:40px;font-weight:700;letter-spacing:-0.03em;color:" + INK + ";\">" + esc(amount) + "</p>"
+                + "<p style=\"margin:0 0 20px;font-size:15px;line-height:1.6;color:" + INK + ";\">Hi " + esc(username) + ", <strong>"
+                + esc(title) + "</strong> is now paused. We won't remind you about it, and it won't count towards your monthly total, until you resume it.</p>"
+                + "<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"margin:0 0 26px;border-top:1px solid " + LINE + ";\">" + rows + "</table>"
+                + button(appUrl + "/recurring", "Resume payment")
+                + "<p style=\"margin:22px 0 0;font-size:13px;line-height:1.6;color:" + MUTED + ";\">Didn't pause this? Open the app and tap <strong>Resume</strong> on the payment.</p>";
+
+        return new Email(subject, text, layout("Payment paused: " + title, body, reminderFooter(appUrl)));
+    }
+
+    /** Sent when a recurring payment is stopped (deleted). */
+    public static Email paymentStopped(
+            String appUrl, String username, String title, String amount,
+            String category, String schedule, String lastDate
+    ) {
+        String subject = title + " was stopped";
+
+        String text = "Hi " + username + ",\n\n"
+                + "Your " + title + " payment of " + amount + " has been stopped and removed. You won't get any more reminders for it.\n"
+                + (category == null ? "" : "Category: " + category + "\n")
+                + schedule + ".\n"
+                + (lastDate == null || lastDate.isBlank() ? "" : "Last scheduled for: " + lastDate + ".\n")
+                + "\nExpenses you already logged stay in your history. Stopped by mistake? Add it again in Recurring > New payment:\n"
+                + appUrl + "/recurring\n\n"
+                + "You're getting this because email reminders are on for your Phainance account. "
+                + "Turn them off in Recurring > Reminder alerts.\n\n— Phainance";
+
+        String rows = row("Status", statusPill("Stopped", "#FFE3DC", "#B23A1E"))
+                + (category == null ? "" : row("Category", esc(category)))
+                + row("Repeated", esc(schedule))
+                + (lastDate == null || lastDate.isBlank() ? "" : row("Last scheduled", esc(lastDate)));
+
+        String body = "<p style=\"margin:0 0 6px;font-size:13px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:" + MUTED + ";\">Payment stopped</p>"
+                + "<h1 style=\"margin:0 0 4px;font-size:26px;line-height:1.2;color:" + INK + ";\">" + esc(title) + "</h1>"
+                + "<p style=\"margin:0 0 22px;font-size:40px;font-weight:700;letter-spacing:-0.03em;color:" + INK + ";\">" + esc(amount) + "</p>"
+                + "<p style=\"margin:0 0 20px;font-size:15px;line-height:1.6;color:" + INK + ";\">Hi " + esc(username) + ", <strong>"
+                + esc(title) + "</strong> has been stopped and removed. You won't get any more reminders for it. Expenses you already logged stay in your history.</p>"
+                + "<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"margin:0 0 26px;border-top:1px solid " + LINE + ";\">" + rows + "</table>"
+                + button(appUrl + "/recurring", "Open Phainance")
+                + "<p style=\"margin:22px 0 0;font-size:13px;line-height:1.6;color:" + MUTED + ";\">Stopped by mistake? Add it again from <strong>Recurring &rarr; New payment</strong>.</p>";
+
+        return new Email(subject, text, layout("Payment stopped: " + title, body, reminderFooter(appUrl)));
+    }
+
+    /** Sent when a paused recurring payment is resumed. */
+    public static Email paymentResumed(
+            String appUrl, String username, String title, String amount,
+            String category, String schedule, String nextDate
+    ) {
+        String rows = row("Status", statusPill("Active", "#DDF5E9", "#0E7A53"))
+                + (category == null ? "" : row("Category", esc(category)))
+                + row("Repeats", esc(schedule))
+                + (blank(nextDate) ? "" : row("Next due", esc(nextDate)));
+        String text = "Your " + title + " payment of " + amount + " is active again, so reminders are back on.\n"
+                + (category == null ? "" : "Category: " + category + "\n")
+                + schedule + ".\n"
+                + (blank(nextDate) ? "" : "Next due: " + nextDate + ".");
+        return compose(appUrl, username, title + " was resumed", "Payment resumed", title, amount,
+                "<strong>" + esc(title) + "</strong> is active again, so we'll send reminders for it at the due time.",
+                text, rows, "Open Phainance",
+                "Didn't resume this? Open the app and tap <strong>Pause</strong> on the payment.");
+    }
+
+    /** Sent when a recurring payment is marked as paid (an expense is logged). */
+    public static Email paymentPaid(
+            String appUrl, String username, String title, String amount,
+            String category, String schedule, String paidDate, String nextDate
+    ) {
+        String rows = row("Status", statusPill("Paid", "#DDF5E9", "#0E7A53"))
+                + (blank(paidDate) ? "" : row("Paid on", esc(paidDate)))
+                + (category == null ? "" : row("Category", esc(category)))
+                + row("Expense", "Logged")
+                + (blank(nextDate) ? "" : row("Next due", esc(nextDate)))
+                + row("Repeats", esc(schedule));
+        String text = title + " (" + amount + ") was marked as paid and logged as an expense.\n"
+                + (blank(paidDate) ? "" : "Paid on: " + paidDate + "\n")
+                + (category == null ? "" : "Category: " + category + "\n")
+                + (blank(nextDate) ? "" : "Next due: " + nextDate + "\n")
+                + schedule + ".";
+        return compose(appUrl, username, title + " was paid", "Payment recorded", title, amount,
+                "<strong>" + esc(title) + "</strong> was marked as paid. We logged it as an expense and moved the next reminder forward.",
+                text, rows, "Open Phainance",
+                "Marked paid by mistake? Open <strong>Expenses</strong> in the app and delete the entry.");
+    }
+
+    /** Sent when one occurrence of a recurring payment is skipped. */
+    public static Email paymentSkipped(
+            String appUrl, String username, String title, String amount,
+            String category, String schedule, String skippedDate, String nextDate
+    ) {
+        String rows = row("Status", statusPill("Skipped", "#E4EAFF", "#3B4FB8"))
+                + (blank(skippedDate) ? "" : row("Skipped", esc(skippedDate)))
+                + (blank(nextDate) ? "" : row("Next due", esc(nextDate)))
+                + (category == null ? "" : row("Category", esc(category)))
+                + row("Repeats", esc(schedule))
+                + row("Expense", "Not logged");
+        String text = "You skipped this occurrence of " + title + " (" + amount + "). No expense was logged.\n"
+                + (blank(skippedDate) ? "" : "Skipped: " + skippedDate + "\n")
+                + (blank(nextDate) ? "" : "Next due: " + nextDate + "\n")
+                + schedule + ".";
+        return compose(appUrl, username, title + " was skipped", "Payment skipped", title, amount,
+                "You skipped this occurrence of <strong>" + esc(title) + "</strong>. We rolled it to the next date and didn't log an expense.",
+                text, rows, "Open Phainance",
+                "Paid it after all? Add it from <strong>Add</strong> in the app and it will count towards your spending.");
+    }
+
+    /** Sent when a recurring payment is edited. Each change is {label, before, after}. */
+    public static Email paymentEdited(
+            String appUrl, String username, String title, String amount, List<String[]> changes
+    ) {
+        StringBuilder rows = new StringBuilder(row("Status", statusPill("Updated", "#EDE9FF", "#4B3FC4")));
+        StringBuilder textChanges = new StringBuilder();
+        for (String[] c : changes) {
+            rows.append(row(esc(c[0]), "<span style=\"color:" + MUTED + ";text-decoration:line-through;font-weight:400;\">" + esc(c[1])
+                    + "</span> &rarr; " + esc(c[2])));
+            textChanges.append(c[0]).append(": ").append(c[1]).append(" -> ").append(c[2]).append("\n");
+        }
+        String text = "Your " + title + " payment was updated.\n\n" + textChanges.toString().trim();
+        return compose(appUrl, username, title + " was updated", "Payment updated", title, amount,
+                "Your <strong>" + esc(title) + "</strong> payment was updated. Here's what changed:",
+                text, rows.toString(), "Review payment",
+                "Didn't make this change? Open the app and edit the payment from <strong>Recurring</strong>.");
+    }
+
     /** Sent right after sign-up (and on "resend"). */
     public static Email verifyEmail(String username, String link) {
         String subject = "Confirm your email for Phainance";
@@ -95,6 +243,40 @@ public final class EmailTemplates {
     private static String row(String label, String value) {
         return "<tr><td style=\"padding:12px 0;border-bottom:1px solid " + LINE + ";font-size:13px;color:" + MUTED + ";width:120px;\">" + label + "</td>"
                 + "<td style=\"padding:12px 0;border-bottom:1px solid " + LINE + ";font-size:15px;font-weight:600;color:" + INK + ";\">" + value + "</td></tr>";
+    }
+
+    private static boolean blank(String s) {
+        return s == null || s.isBlank();
+    }
+
+    /** Shared body for the payment status emails (same layout as the due reminder). */
+    private static Email compose(
+            String appUrl, String username, String subject, String eyebrow, String title, String amount,
+            String introHtml, String textBody, String rowsHtml, String cta, String noteHtml
+    ) {
+        String text = "Hi " + username + ",\n\n" + textBody + "\n\n" + appUrl + "/recurring\n\n"
+                + "You're getting this because email reminders are on for your Phainance account. "
+                + "Turn them off in Recurring > Reminder alerts.\n\n— Phainance";
+
+        String body = "<p style=\"margin:0 0 6px;font-size:13px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:" + MUTED + ";\">" + eyebrow + "</p>"
+                + "<h1 style=\"margin:0 0 4px;font-size:26px;line-height:1.2;color:" + INK + ";\">" + esc(title) + "</h1>"
+                + "<p style=\"margin:0 0 22px;font-size:40px;font-weight:700;letter-spacing:-0.03em;color:" + INK + ";\">" + esc(amount) + "</p>"
+                + "<p style=\"margin:0 0 20px;font-size:15px;line-height:1.6;color:" + INK + ";\">Hi " + esc(username) + ", " + introHtml + "</p>"
+                + "<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"margin:0 0 26px;border-top:1px solid " + LINE + ";\">" + rowsHtml + "</table>"
+                + button(appUrl + "/recurring", cta)
+                + "<p style=\"margin:22px 0 0;font-size:13px;line-height:1.6;color:" + MUTED + ";\">" + noteHtml + "</p>";
+
+        return new Email(subject, text, layout(eyebrow + ": " + title, body, reminderFooter(appUrl)));
+    }
+
+    private static String statusPill(String label, String bg, String fg) {
+        return "<span style=\"display:inline-block;padding:3px 12px;border-radius:999px;background:" + bg + ";color:" + fg
+                + ";font-size:13px;font-weight:700;\">" + label + "</span>";
+    }
+
+    private static String reminderFooter(String appUrl) {
+        return "You're getting this because email reminders are on for your Phainance account. "
+                + "Turn them off in <a href=\"" + esc(appUrl) + "/recurring\" style=\"color:" + MUTED + ";\">Recurring &rarr; Reminder alerts</a>.";
     }
 
     private static String button(String href, String label) {

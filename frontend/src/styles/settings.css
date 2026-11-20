@@ -28,14 +28,6 @@
 .seg button:hover { color: var(--ink); }
 .seg button.on { background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }
 
-.cur-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 8px; }
-.cur-chip { height: 38px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 0 8px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface-2); color: var(--ink); font-weight: 600; font-size: 0.82rem; cursor: pointer; transition: all 0.15s ease; }
-.cur-chip .sym { color: var(--muted); font-weight: 700; }
-.cur-chip:hover:not(:disabled) { border-color: var(--muted); }
-.cur-chip.on { background: var(--primary-bg); color: var(--primary-fg); border-color: var(--primary-bg); }
-.cur-chip.on .sym { color: inherit; opacity: 0.7; }
-.cur-chip:disabled { opacity: 0.4; cursor: not-allowed; }
-
 .data-row { width: 100%; display: flex; align-items: center; gap: 14px; padding: 12px; margin-top: 8px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface-2); color: var(--ink); text-align: left; cursor: pointer; transition: border-color 0.15s ease, background 0.15s ease; }
 .data-row:hover:not(:disabled) { border-color: var(--muted); }
 .data-row:disabled { opacity: 0.5; cursor: not-allowed; }

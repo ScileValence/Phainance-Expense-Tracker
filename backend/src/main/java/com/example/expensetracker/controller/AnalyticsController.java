@@ -178,4 +178,41 @@ public class AnalyticsController {
                 })
                 .collect(Collectors.toList());
     }
+
+    // 5⃣ Monthly trend: total spending for the last N months, ending at the selected month
+    @GetMapping("/trend")
+    public List<Map<String, Object>> monthlyTrend(
+            @RequestParam(required = false) String month,
+            @RequestParam(defaultValue = "6") int months,
+            HttpServletRequest request
+    ) {
+        User user = getUserFromRequest(request);
+        if (user == null) return Collections.emptyList();
+
+        YearMonth end;
+        try {
+            end = (month != null && !month.isBlank()) ? YearMonth.parse(month) : YearMonth.now();
+        } catch (Exception e) {
+            end = YearMonth.now();
+        }
+        int n = Math.max(2, Math.min(months, 12));
+        YearMonth start = end.minusMonths(n - 1L);
+
+        Map<YearMonth, Double> totals = new LinkedHashMap<>();
+        for (int i = 0; i < n; i++) totals.put(start.plusMonths(i), 0.0);
+
+        for (Expense e : expenseRepository.findByUserAndDateBetween(user, start.atDay(1), end.atEndOfMonth())) {
+            if (e.getDate() == null) continue;
+            totals.merge(YearMonth.from(e.getDate()), e.getAmount() == null ? 0.0 : e.getAmount(), Double::sum);
+        }
+
+        List<Map<String, Object>> result = new ArrayList<>();
+        totals.forEach((ym, total) -> {
+            Map<String, Object> map = new HashMap<>();
+            map.put("month", ym.toString());
+            map.put("amount", total);
+            result.add(map);
+        });
+        return result;
+    }
 }

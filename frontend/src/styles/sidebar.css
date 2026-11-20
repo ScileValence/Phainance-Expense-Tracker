@@ -14,14 +14,6 @@
 }
 .brand-name { font-family: var(--font-display); font-weight: 600; font-size: 1.25rem; letter-spacing: -0.03em; }
 
-.settings-btn {
-  margin-left: auto; width: 34px; height: 34px; flex: none; display: grid; place-items: center;
-  border: none; border-radius: 10px; background: transparent; color: #a3a6b0; cursor: pointer;
-  transition: background 0.2s ease, color 0.2s ease, transform 0.3s ease;
-}
-.settings-btn:hover { background: rgba(255, 255, 255, 0.08); color: #fff; transform: rotate(45deg); }
-.settings-fab { display: none; }
-
 .nav-label { font-size: 0.65rem; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: #6d707a; padding: 10px 12px 6px; }
 .menu { display: flex; flex-direction: column; gap: 2px; flex: 1; min-height: 0; overflow-y: auto; margin: 0 -16px; padding: 0 16px; scrollbar-width: none; }
 .menu::-webkit-scrollbar { display: none; }
@@ -99,7 +91,7 @@
   .user-chip span { display: none; }
 }
 @media (min-width: 901px) and (max-height: 640px) {
-  .user-chip { display: none; }
+  .user-chip > div:not(.avatar) { display: none; }
   .brand-name { font-size: 1.1rem; }
   .menu-item { height: 38px; }
 }
@@ -136,13 +128,14 @@
   .page { padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
 }
 
-/* ---- settings button on mobile: top-left, since the brand row is hidden there ---- */
-@media (max-width: 900px) {
-  .settings-fab {
-    display: grid; place-items: center; position: fixed; z-index: 49;
-    top: calc(10px + env(safe-area-inset-top, 0px)); left: 12px; width: 40px; height: 40px;
-    border: 1px solid var(--line); border-radius: 50%; background: var(--surface); color: var(--ink);
-    box-shadow: var(--shadow); cursor: pointer;
-  }
-  .settings-fab:active { transform: scale(0.94); }
+/* settings icon beside the profile name (all pages except Overview) */
+.chip-settings {
+  margin-left: auto; width: 34px; height: 34px; flex: none; display: grid; place-items: center;
+  border: none; border-radius: 10px; background: transparent; color: #a3a6b0; cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease;
 }
+.chip-settings svg { transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.chip-settings:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
+.chip-settings:hover svg { transform: rotate(90deg); }
+.chip-settings.pop { color: var(--muted); }
+.chip-settings.pop:hover { background: var(--surface-2); color: var(--ink); }

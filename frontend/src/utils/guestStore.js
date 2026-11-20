@@ -171,6 +171,17 @@ export async function guestAdapter(config) {
           .map((date) => ({ date, amount: by[date] }))
       );
     }
+    if (idRaw === "trend") {
+      const n = Math.min(12, Math.max(2, Number(q.months) || 6));
+      const [y, m] = month.split("-").map(Number);
+      const out = [];
+      for (let i = n - 1; i >= 0; i--) {
+        const d = new Date(y, m - 1 - i, 1);
+        const key = `${d.getFullYear()}-${pad(d.getMonth() + 1)}`;
+        out.push({ month: key, amount: sum(db.expenses.filter((e) => (e.date || "").startsWith(key))) });
+      }
+      return ok(out);
+    }
     if (idRaw === "monthly") return ok([{ month, amount: sum(list) }]);
     if (idRaw === "budget-trend") return ok([{ month, budget: db.budgets[month] || 0, spent: sum(list) }]);
   }

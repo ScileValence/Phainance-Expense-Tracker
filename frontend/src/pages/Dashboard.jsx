@@ -2,10 +2,10 @@ import MonthPicker from "../components/ui/MonthPicker";
 import React, { useContext, useEffect, useState, useCallback } from "react";
 import api from "../api/axios";
 import { useNavigate } from "react-router-dom";
-import { Plus, Wallet, TrendingDown, PiggyBank, Repeat, ChevronRight } from "lucide-react";
+import { Plus, Wallet, TrendingDown, PiggyBank, Repeat, ChevronRight, Lightbulb, ArrowUpRight, ArrowDownRight, Minus } from "lucide-react";
 import {
   PieChart, Pie, Cell, Tooltip as ReTooltip,
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, ResponsiveContainer,
+  AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer,
 } from "recharts";
 import Sidebar from "../components/Sidebar";
 import DueReminders from "../components/DueReminders";
@@ -24,6 +24,13 @@ const ChartTip = ({ active, payload, label, prefix = "" }) =>
     </div>
   ) : null;
 
+const TrendTip = ({ active, payload }) =>
+  active && payload?.length ? (
+    <div className="chart-tooltip">
+      {payload[0].payload.full}: {money(payload[0].value)}
+    </div>
+  ) : null;
+
 export default function Dashboard() {
   const navigate = useNavigate();
   const { recurring, refreshToggle, now } = useContext(AppContext);
@@ -36,6 +43,7 @@ export default function Dashboard() {
   const [budgetData, setBudgetData] = useState({ month: "", limit: 0, spent: 0 });
   const [categoryData, setCategoryData] = useState([]);
   const [dailyData, setDailyData] = useState([]);
+  const [trendData, setTrendData] = useState([]);
   const [incomeTotal, setIncomeTotal] = useState(0);
 
   useEffect(() => {
@@ -45,17 +53,19 @@ export default function Dashboard() {
   const fetchAll = useCallback(
     async (forMonth) => {
       try {
-        const [exp, bud, cat, daily, inc] = await Promise.all([
+        const [exp, bud, cat, daily, inc, trend] = await Promise.all([
           api.get(`/expenses?month=${forMonth}`),
           api.get(`/budget?month=${forMonth}`),
           api.get(`/analytics/category?month=${forMonth}`),
           api.get(`/analytics/daily?month=${forMonth}`),
           api.get(`/income?month=${forMonth}`),
+          api.get(`/analytics/trend?month=${forMonth}&months=6`).catch(() => ({ data: [] })),
         ]);
         setExpenses(exp.data || []);
         setBudgetData(bud.data || { month: forMonth, limit: 0, spent: 0 });
         setCategoryData(cat.data || []);
         setDailyData(daily.data || []);
+        setTrendData(trend.data || []);
         setIncomeTotal((inc.data || []).reduce((t, i) => t + (i.amount || 0), 0));
       } catch (err) {
         console.error("Dashboard fetch failed:", err);
@@ -84,6 +94,26 @@ export default function Dashboard() {
 
   const monthLabel = new Date(`${month}-01`).toLocaleString("default", { month: "long", year: "numeric" });
   const catTotal = categoryData.reduce((s, c) => s + (c.value || 0), 0);
+
+  // money insight: categories ranked by spend (colors match the donut)
+  const ranked = categoryData
+    .map((c, i) => ({ ...c, color: COLORS[i % COLORS.length], share: catTotal > 0 ? Math.round((c.value / catTotal) * 100) : 0 }))
+    .sort((a, b) => b.value - a.value);
+  const top = ranked[0];
+
+  // monthly trend: last 6 months ending at the selected month
+  const trendRows = trendData.map((t) => {
+    const d = new Date(`${t.month}-01T00:00:00`);
+    return {
+      ...t,
+      label: d.toLocaleString("default", { month: "short" }),
+      full: d.toLocaleString("default", { month: "long", year: "numeric" }),
+      current: t.month === month,
+    };
+  });
+  const curRow = trendRows[trendRows.length - 1];
+  const prevRow = trendRows[trendRows.length - 2];
+  const change = curRow && prevRow && prevRow.amount > 0 ? Math.round(((curRow.amount - prevRow.amount) / prevRow.amount) * 100) : null;
 
   return (
     <div className="app-shell">
@@ -146,6 +176,73 @@ export default function Dashboard() {
               <div><div className="stat-value">{upcoming}</div><div className="stat-label">Due in 3 days</div></div>
             </div>
           </div>
+
+          {/* money insight */}
+          <section className="card col-5 fade-in">
+            <div className="card-head">
+              <div><h3 className="card-title">Money insight</h3><div className="card-sub">{monthLabel}</div></div>
+              <div className="insight-icon"><Lightbulb size={18} /></div>
+            </div>
+            {!top ? (
+              <div className="empty"><p>Add some expenses to see where your money goes.</p></div>
+            ) : (
+              <>
+                <div className="insight-line">You spent the most on</div>
+                <div className="insight-top">
+                  <span className="dot" style={{ background: top.color }} />
+                  <strong>{top.name}</strong>
+                </div>
+                <div className="insight-amount">{money(top.value)}</div>
+                <div className="progress"><span style={{ width: `${top.share}%`, background: top.color }} /></div>
+                <p className="insight-note">
+                  {top.share}% of this month’s spending
+                  {ranked.length > 1 ? ` · ${money(top.value - ranked[1].value)} more than ${ranked[1].name}` : ""}
+                </p>
+                {ranked.length > 1 && (
+                  <div className="insight-rank">
+                    {ranked.slice(1, 4).map((c) => (
+                      <div className="insight-rank-row" key={c.name}>
+                        <span className="dot" style={{ background: c.color }} />
+                        <span className="name">{c.name}</span>
+                        <span className="val">{money(c.value)}</span>
+                        <span className="pct">{c.share}%</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+          </section>
+
+          {/* monthly trend */}
+          <section className="card col-7 fade-in">
+            <div className="card-head">
+              <div><h3 className="card-title">Monthly trend</h3><div className="card-sub">Spending, last {trendRows.length || 6} months</div></div>
+              {change !== null && (
+                <span className={`trend-pill ${change > 0 ? "up" : change < 0 ? "down" : ""}`}>
+                  {change > 0 ? <ArrowUpRight size={14} /> : change < 0 ? <ArrowDownRight size={14} /> : <Minus size={14} />}
+                  {Math.abs(change)}% vs {prevRow.label}
+                </span>
+              )}
+            </div>
+            {trendRows.length === 0 ? (
+              <div className="empty"><p>No data yet.</p></div>
+            ) : (
+              <div className="chart-box">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={trendRows} margin={{ left: -12, right: 6, top: 6 }}>
+                    <CartesianGrid vertical={false} stroke="var(--line)" />
+                    <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fill: "var(--muted)", fontSize: 12 }} />
+                    <YAxis tickLine={false} axisLine={false} tick={{ fill: "var(--muted)", fontSize: 12 }} tickFormatter={compact} />
+                    <ReTooltip content={<TrendTip />} cursor={{ fill: "var(--surface-2)" }} />
+                    <Bar dataKey="amount" radius={[8, 8, 0, 0]} maxBarSize={48}>
+                      {trendRows.map((t, i) => <Cell key={i} fill="#6d5ef5" fillOpacity={t.current ? 1 : 0.35} />)}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+          </section>
 
           {/* spending by category */}
           <section className="card col-5 fade-in">

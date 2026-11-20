@@ -48,6 +48,18 @@ function AccountMenu({ username, guest, logout, onSignIn }) {
               <strong>{username}</strong>
               <span>{guest ? "Guest · not saved" : "Personal account"}</span>
             </div>
+            <button
+              type="button"
+              className="chip-settings pop"
+              onClick={() => {
+                close();
+                openSettings();
+              }}
+              aria-label="Settings"
+              title="Settings"
+            >
+              <Settings size={17} />
+            </button>
           </div>
           {guest ? (
             <button type="button" className="acct-row" onClick={onSignIn}>
@@ -88,15 +100,7 @@ export default function Sidebar() {
       <div className="brand">
         <div className="brand-mark">p</div>
         <span className="brand-name">phainance</span>
-        <button type="button" className="settings-btn" onClick={openSettings} aria-label="Settings" title="Settings">
-          <Settings size={18} />
-        </button>
       </div>
-
-      {/* mobile: the brand row is hidden, so Settings gets its own top-left button */}
-      <button type="button" className="settings-fab" onClick={openSettings} aria-label="Settings">
-        <Settings size={20} />
-      </button>
 
       <nav className="menu">
         <div className="nav-label">Menu</div>
@@ -127,6 +131,9 @@ export default function Sidebar() {
             <strong>{username}</strong>
             <span>{guest ? "Guest · not saved" : "Personal account"}</span>
           </div>
+          <button type="button" className="chip-settings" onClick={openSettings} aria-label="Settings" title="Settings">
+            <Settings size={17} />
+          </button>
         </div>
         <div className="foot-actions">
           {guest ? (

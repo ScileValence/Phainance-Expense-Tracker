@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "react-toastify";
 import { Download, Moon, Settings, Sun, Trash2, Upload, X } from "lucide-react";
+import Select from "./ui/Select";
 import { CURRENCIES, activeCode, setCurrency, useCurrency } from "../utils/currency";
 import { authState } from "../utils/auth";
 import { closeSettings, useSettingsOpen } from "../utils/settingsStore";
@@ -39,7 +40,8 @@ function SettingsDialog({ onClose }) {
     const overflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     const onKey = (e) => {
-      if (e.key === "Escape" && !e.defaultPrevented) onClose();
+      // an open dropdown (rendered in a portal) handles its own Escape first
+      if (e.key === "Escape" && !e.defaultPrevented && !document.querySelector(".ui-popover")) onClose();
     };
     document.addEventListener("keydown", onKey);
     return () => {
@@ -146,20 +148,17 @@ function SettingsDialog({ onClose }) {
 
           <section className="settings-section">
             <h4>Currency</h4>
-            <div className="cur-grid" role="group" aria-label="Display currency">
-              {CURRENCIES.map((cur) => (
-                <button
-                  key={cur.code}
-                  type="button"
-                  title={cur.name}
-                  className={`cur-chip ${active === cur.code ? "on" : ""}`}
-                  disabled={cur.code !== "INR" && !rates?.[cur.code]}
-                  onClick={() => setCurrency(cur.code)}
-                >
-                  <span className="sym">{cur.symbol}</span> {cur.code}
-                </button>
-              ))}
-            </div>
+            <Select
+              name="currency"
+              value={active}
+              ariaLabel="Display currency"
+              onChange={(e) => setCurrency(e.target.value)}
+              options={CURRENCIES.map((cur) => ({
+                value: cur.code,
+                label: `${cur.symbol}  ${cur.code} · ${cur.name}`,
+                disabled: cur.code !== "INR" && !rates?.[cur.code],
+              }))}
+            />
             <p className="settings-note">
               {rates ? "Amounts are stored in INR and converted for display." : "Live rates unavailable: showing INR."}{" "}
               <a href="https://www.exchangerate-api.com" target="_blank" rel="noreferrer">
