@@ -1,0 +1,42 @@
+# Dependencies
+node_modules/
+
+# Build output
+frontend/dist/
+backend/target/
+*.class
+*.jar
+*.war
+
+# Secrets and local configuration
+backend/src/main/resources/secrets.properties
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# IDE and editor files
+.idea/
+*.iml
+*.iws
+.classpath
+.project
+.settings/
+.factorypath
+.vscode/*
+!.vscode/settings.json
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Temporary files
+*.tmp
+*.swp
+*~

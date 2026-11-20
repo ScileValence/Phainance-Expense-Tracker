@@ -1,0 +1,43 @@
+/* ============ AUTH ============ */
+.auth-layout { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); min-height: 100vh; background: var(--bg); }
+
+.auth-image { position: relative; overflow: hidden; background: #0f1013; }
+.auth-image img { width: 100%; height: 100%; object-fit: cover; opacity: 0.55; filter: saturate(0.8) contrast(1.05); animation: drift 22s ease-in-out infinite alternate; }
+@keyframes drift { from { transform: scale(1.04) translateX(0); } to { transform: scale(1.12) translateX(-2%); } }
+.auth-image::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(15, 16, 19, 0.2) 0%, rgba(15, 16, 19, 0.85) 100%); }
+.overlay-text { position: absolute; z-index: 2; left: 48px; right: 48px; bottom: 56px; color: #f3f2ed; }
+.overlay-text .brand-mark { margin-bottom: 20px; width: 44px; height: 44px; font-size: 1.4rem; border-radius: 14px; }
+.overlay-text h1 { font-size: clamp(2.4rem, 5vw, 3.8rem); font-weight: 600; letter-spacing: -0.04em; }
+.overlay-text p { margin-top: 10px; font-size: 1.05rem; color: #b5b7c0; max-width: 28ch; }
+.overlay-text .accent { color: var(--lime); }
+
+.auth-form-card { display: flex; flex-direction: column; justify-content: center; padding: 48px clamp(28px, 7vw, 96px); animation: rise 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.auth-form-card h2 { font-size: 2rem; font-weight: 600; margin-bottom: 8px; }
+.auth-form-card .small-text { color: var(--muted); margin-bottom: 28px; }
+.auth-form-card form { display: flex; flex-direction: column; gap: 14px; }
+.auth-form-card .btn { width: 100%; height: 48px; margin-top: 6px; }
+.auth-footer { margin-top: 26px; color: var(--muted); font-size: 0.92rem; }
+.auth-footer a { color: var(--ink); font-weight: 700; text-decoration: underline; text-decoration-color: var(--lime); text-decoration-thickness: 3px; text-underline-offset: 3px; }
+
+.error-msg, .success-msg { padding: 10px 14px; border-radius: 12px; font-size: 0.88rem; font-weight: 600; margin-bottom: 14px; }
+.error-msg { background: color-mix(in srgb, var(--danger) 12%, transparent); color: var(--danger); }
+.success-msg { background: color-mix(in srgb, var(--ok) 14%, transparent); color: var(--ok); }
+
+@media (max-width: 860px) {
+  .auth-layout { grid-template-columns: 1fr; }
+  .auth-image { height: 220px; }
+  .overlay-text { left: 24px; bottom: 24px; }
+  .overlay-text .brand-mark { display: none; }
+  .overlay-text h1 { font-size: 2rem; }
+  .overlay-text p { display: none; }
+  .auth-form-card { padding: 32px 24px 48px; }
+}
+
+/* ============ VERIFY EMAIL ============ */
+.verify-wrap { min-height: 100vh; display: grid; place-items: center; padding: 24px; background: var(--bg); }
+.verify-card { max-width: 440px; width: 100%; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 36px 28px; }
+.verify-card h2 { font-size: 1.6rem; }
+.verify-card p { color: var(--muted); }
+.verify-card .btn { margin-top: 8px; }
+.spin { animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
