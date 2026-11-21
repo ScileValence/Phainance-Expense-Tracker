@@ -9,6 +9,15 @@ export async function importGuestData() {
   const db = readGuestData();
   const { data: serverCats } = await api.get("/categories");
   const byName = new Map((serverCats || []).map((c) => [c.name.toLowerCase(), c.id]));
+  for (const name of new Set([...db.expenses, ...db.recurring].map((x) => x.category?.name).filter(Boolean))) {
+    if (byName.has(name.toLowerCase())) continue;
+    try {
+      const { data } = await api.post("/categories", { name });
+      byName.set(name.toLowerCase(), data.id);
+    } catch {
+      /* uses Other */
+    }
+  }
   const catId = (c) => (c ? byName.get(c.name.toLowerCase()) ?? byName.get("other") ?? null : null);
 
   let done = 0;

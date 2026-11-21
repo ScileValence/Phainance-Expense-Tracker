@@ -15,9 +15,9 @@ public class DataLoader implements CommandLineRunner {
 
     private static final Logger log = LoggerFactory.getLogger(DataLoader.class);
 
-    // lowest id per category name (ignoring case and surrounding spaces) = the row we keep
+    // lowest id per built-in category name (ignoring case and surrounding spaces) = the row we keep
     private static final String KEEP =
-            "(SELECT MIN(id) AS keep_id, LOWER(TRIM(name)) AS n FROM categories GROUP BY LOWER(TRIM(name)))";
+            "(SELECT MIN(id) AS keep_id, LOWER(TRIM(name)) AS n FROM categories WHERE user_id IS NULL GROUP BY LOWER(TRIM(name)))";
 
     private final CategoryRepository categoryRepository;
     private final JdbcTemplate jdbc;
@@ -35,33 +35,35 @@ public class DataLoader implements CommandLineRunner {
                 "Food", "Rent", "Utilities", "Entertainment", "Other"
         );
 
+        // built-in categories have no owner (user_id NULL)
         for (String name : defaultCategories) {
-            if (!categoryRepository.existsByName(name)) {
+            if (!categoryRepository.existsByNameIgnoreCaseAndUserIsNull(name)) {
                 categoryRepository.save(new Category(name));
             }
         }
     }
 
     /**
-     * Older databases can hold the same category more than once. Keep the lowest id per name,
-     * point every expense / recurring payment at it, then delete the extra rows. Safe to run on every start.
+     * Safety net: if the same built-in category ever exists twice, keep the lowest id, point every expense /
+     * recurring payment at it and delete the extra rows. A no-op when there are no duplicates.
      */
     private void mergeDuplicateCategories() {
         try {
             Integer extra = jdbc.queryForObject(
-                    "SELECT COUNT(*) - COUNT(DISTINCT LOWER(TRIM(name))) FROM categories WHERE name IS NOT NULL", Integer.class);
+                    "SELECT COUNT(*) - COUNT(DISTINCT LOWER(TRIM(name))) FROM categories WHERE user_id IS NULL AND name IS NOT NULL",
+                    Integer.class);
             if (extra == null || extra <= 0) return;
 
             for (String table : List.of("expenses", "recurring_payments")) {
-                jdbc.update("UPDATE " + table + " t JOIN categories c ON t.category_id = c.id "
+                jdbc.update("UPDATE " + table + " t JOIN categories c ON t.category_id = c.id AND c.user_id IS NULL "
                         + "JOIN " + KEEP + " k ON k.n = LOWER(TRIM(c.name)) "
                         + "SET t.category_id = k.keep_id WHERE t.category_id <> k.keep_id");
             }
             int removed = jdbc.update("DELETE c FROM categories c JOIN " + KEEP + " k ON k.n = LOWER(TRIM(c.name)) "
-                    + "WHERE c.id <> k.keep_id");
+                    + "WHERE c.user_id IS NULL AND c.id <> k.keep_id");
             log.info("Merged duplicate categories: removed {} extra rows", removed);
         } catch (Exception e) {
-            log.warn("Could not merge duplicate categories automatically ({}). Run database/fix_duplicate_categories.sql instead.", e.getMessage());
+            log.warn("Could not merge duplicate categories automatically ({})", e.getMessage());
         }
     }
 }

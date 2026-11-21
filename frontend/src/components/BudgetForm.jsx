@@ -1,11 +1,12 @@
 import MonthPicker from "./ui/MonthPicker";
-import React, { useEffect, useState } from "react";
-import api from "../api";
+import React, { useEffect, useRef, useState } from "react";
+import api from "../api/axios";
 import Sidebar from "./Sidebar";
 import StatusBanner from "./StatusBanner";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Check } from "lucide-react";
+import { burstFrom } from "../utils/motion";
 import { money, toBase, toInput, currencySymbol } from "../utils/currency";
 import "../styles/dashboard.css";
 
@@ -31,12 +32,18 @@ export default function BudgetForm() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [month, navigate]);
 
+  const [done, setDone] = useState(false);
+  const saveBtn = useRef(null);
+
   const submit = (e) => {
     e.preventDefault();
     api
       .post("/budget", { limitAmount: toBase(limit), month })
       .then(() => {
         toast.success("Budget saved");
+        setDone(true);
+        burstFrom(saveBtn.current, { count: 8, spread: 0.9 });
+        setTimeout(() => setDone(false), 900);
         fetchBudget();
       })
       .catch(() => toast.error("Error saving budget"));
@@ -88,7 +95,10 @@ export default function BudgetForm() {
               </div>
             </div>
             <div className="form-actions">
-              <button type="submit" className="btn btn-primary">Save budget</button>
+              <button ref={saveBtn} type="submit" className={`btn btn-primary btn-save ${done ? "is-done" : ""}`} disabled={done}>
+                {done && <Check size={17} className="draw-check" strokeWidth={3} />}
+                {done ? "Saved" : "Save budget"}
+              </button>
               <button type="button" className="btn btn-ghost" onClick={() => navigate("/dashboard")}>Cancel</button>
             </div>
           </form>

@@ -10,17 +10,22 @@ import Income from "./pages/Income";
 import VerifyEmail from "./pages/VerifyEmail";
 import ReminderWatcher from "./components/ReminderWatcher";
 import SettingsHost from "./components/SettingsModal";
+import MotionRoot from "./components/MotionRoot";
 
 import AddExpense from "./components/AddExpense";
 import ExpenseList from "./components/ExpenseList";
 import BudgetForm from "./components/BudgetForm";
 
 import { AppProvider } from "./context/AppContext";
-import { ToastContainer, toast } from "react-toastify";
+import { ToastContainer, toast, cssTransition } from "react-toastify";
 import { authState } from "./utils/auth";
 import { loadRates, useCurrency } from "./utils/currency";
 import "react-toastify/dist/ReactToastify.css";
 import "./styles.css";
+import "./styles/motion.css";
+
+// toasts: stretch in, squash on impact, settle (see motion.css)
+const Pop = cssTransition({ enter: "toast-in", exit: "toast-out", collapseDuration: 120 });
 
 // Load saved or system theme
 const savedTheme =
@@ -77,10 +82,12 @@ ReactDOM.createRoot(document.getElementById("root")).render(
         <AppRoutes />
         <ReminderWatcher />
         <SettingsHost />
+        <MotionRoot />
 
         {/* Toast Notifications */}
         <ToastContainer
           position="top-right"
+          transition={Pop}
           autoClose={1500}
           hideProgressBar={false}
           newestOnTop={false}

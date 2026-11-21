@@ -102,6 +102,13 @@ export default function Select({
       <Popover anchorRef={wrapRef} open={open} onClose={close} role="listbox" className="ui-menu">
         <ul ref={listRef} className="ui-list">
           {options.map((o, i) => {
+            if (o.group) {
+              return (
+                <li key={`g-${o.label}`} role="presentation" className="ui-group">
+                  {o.label}
+                </li>
+              );
+            }
             const isSel = String(o.value) === String(value);
             return (
               <li

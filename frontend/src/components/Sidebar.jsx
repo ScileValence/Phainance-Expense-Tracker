@@ -5,6 +5,7 @@ import {
   LayoutDashboard,
   Receipt,
   PlusCircle,
+  Plus,
   PiggyBank,
   Repeat,
   Wallet,
@@ -95,7 +96,11 @@ export default function Sidebar() {
     window.location.href = "/dashboard"; // full reload: back to guest mode, account data cleared
   };
 
+  // thumb-reach shortcut on phones: the one lime control on screen
+  const showFab = ["/dashboard", "/list", "/income"].includes(location.pathname);
+
   return (
+    <>
     <aside className="sidebar">
       <div className="brand">
         <div className="brand-mark">p</div>
@@ -150,5 +155,11 @@ export default function Sidebar() {
         </div>
       </div>
     </aside>
+    {showFab && (
+      <button type="button" className="fab" onClick={() => navigate("/add")} aria-label="Add expense">
+        <Plus size={26} strokeWidth={2.6} />
+      </button>
+    )}
+    </>
   );
 }

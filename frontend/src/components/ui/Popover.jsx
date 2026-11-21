@@ -20,9 +20,11 @@ export default function Popover({ anchorRef, open, onClose, align = "left", clas
     const top = up ? Math.max(8, r.top - ph - 6) : r.bottom + 6;
     let left = align === "right" ? r.right - pw : r.left;
     left = Math.max(8, Math.min(left, window.innerWidth - pw - 8));
-    const next = { top: Math.round(top), left: Math.round(left), minWidth: Math.round(r.width), up };
+    // grow out of the trigger: origin x = trigger centre, y = the edge facing the trigger
+    const originX = Math.max(0, Math.min(r.left + r.width / 2 - left, pw));
+    const next = { top: Math.round(top), left: Math.round(left), minWidth: Math.round(r.width), up, originX: Math.round(originX) };
     setPos((prev) =>
-      prev && prev.top === next.top && prev.left === next.left && prev.minWidth === next.minWidth && prev.up === next.up
+      prev && prev.top === next.top && prev.left === next.left && prev.minWidth === next.minWidth && prev.up === next.up && prev.originX === next.originX
         ? prev
         : next
     );
@@ -72,6 +74,7 @@ export default function Popover({ anchorRef, open, onClose, align = "left", clas
         top: pos ? pos.top : -9999,
         left: pos ? pos.left : -9999,
         minWidth: pos ? pos.minWidth : undefined,
+        transformOrigin: pos ? `${pos.originX}px ${pos.up ? "100%" : "0"}` : undefined,
         visibility: pos ? "visible" : "hidden",
       }}
     >

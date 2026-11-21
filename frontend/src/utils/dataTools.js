@@ -156,6 +156,19 @@ export async function applyImport(clean, { replace = false } = {}) {
 
   const { data: cats } = await api.get("/categories");
   const byName = new Map((cats || []).map((c) => [String(c.name).toLowerCase(), c.id]));
+
+  // custom categories from the file are created if you don't have them yet (otherwise they fall back to Other)
+  const wanted = [...new Set([...clean.expenses, ...clean.recurring].map((x) => x.category).filter(Boolean).map(String))];
+  for (const name of wanted) {
+    if (byName.has(name.toLowerCase())) continue;
+    try {
+      const { data } = await api.post("/categories", { name });
+      byName.set(name.toLowerCase(), data.id);
+    } catch {
+      /* uses Other */
+    }
+  }
+
   const catId = (name) => (name ? byName.get(name.toLowerCase()) ?? byName.get("other") ?? null : null);
   const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 

@@ -27,7 +27,7 @@ import java.util.Map;
  */
 @RestController
 @RequestMapping("/api/data")
-@CrossOrigin(origins = "http://localhost:5173")
+@CrossOrigin(origins = "${app.url:http://localhost:5173}")
 public class DataController {
 
     private final ExpenseRepository expenseRepository;

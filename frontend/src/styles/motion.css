@@ -1,0 +1,255 @@
+/* ==========================================================================
+   MOTION SYSTEM  (loaded last, so it refines the component styles)
+
+   Where each principle lives
+   - Timing ........... every UI transition is <= 280ms. Only the celebration (peak moment) and
+                        ambient loops (skeleton, due ring) run longer.
+   - Slow in/slow out . --ease-in-out for moves, --ease-out for settles. No linear UI motion.
+   - Squash & stretch . buttons/chips/FAB squash on press, switch knob stretches, toasts stretch in
+                        motion and squash on impact.
+   - Anticipation ..... press = wind-up (scale down) before release; delete pulls back before sliding.
+   - Follow-through ... spring overshoot on release, nav icon and active bar settle, numbers overshoot.
+   - Exaggeration ..... saved/paid states pop bigger than normal, toasts overshoot.
+   - Origin ........... dialogs, menus, ripples, theme change and confetti start at the pointer.
+   - Arcs ............. confetti paths curve (x and y use different easings); toast arrives on a curve.
+   - Staggering ....... first visit of a screen, settings sections, sidebar on first load.
+   - Frequency ........ entrances play once per session per screen; hovering/navigating stays quiet.
+   - Solid drawing .... top highlights + bottom edges on buttons/cards, gloss on bars and icons.
+   - Von Restorff ..... one lime FAB, one pulsing "due" badge, one accented insight card.
+   - Interruptible .... transitions (not keyframes) for state changes; undo on delete.
+   ========================================================================== */
+:root {
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --anticipate: cubic-bezier(0.6, -0.28, 0.735, 0.045);
+  --spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --t-instant: 80ms;
+  --t-fast: 140ms;
+  --t-med: 200ms;
+  --t-slow: 280ms;
+  --hl: rgba(255, 255, 255, 0.55);
+}
+[data-theme="dark"] { --hl: rgba(255, 255, 255, 0.06); }
+
+/* ---------- buttons: squash on press, spring back ---------- */
+.btn, .chip, .data-row, .menu-item, .foot-btn { user-select: none; -webkit-user-select: none; touch-action: manipulation; }
+.btn {
+  position: relative;
+  transition: transform var(--t-med) var(--spring), box-shadow var(--t-fast) var(--ease-out),
+    background-color var(--t-fast) var(--ease-out), border-color var(--t-fast) var(--ease-out),
+    color var(--t-fast) var(--ease-out), filter var(--t-fast) var(--ease-out), opacity var(--t-fast) var(--ease-out);
+}
+.btn:active:not(:disabled) { transform: scale(1.025, 0.94); transition-duration: var(--t-instant); }
+.btn-primary, .btn-lime, .chip, .data-row { position: relative; overflow: hidden; }
+
+/* solid drawing: lit top edge, shaded bottom edge, pressed = pushed in */
+.btn-primary {
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0) 60%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), inset 0 -2px 0 rgba(0, 0, 0, 0.22), 0 1px 2px rgba(21, 22, 26, 0.25);
+}
+.btn-primary:hover:not(:disabled), [data-theme="dark"] .btn-primary:hover:not(:disabled) {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), inset 0 -2px 0 rgba(0, 0, 0, 0.22), 0 6px 16px rgba(21, 22, 26, 0.28);
+}
+.btn-primary:active:not(:disabled) { box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.3); }
+.btn-lime { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5), inset 0 -2px 0 rgba(0, 0, 0, 0.16); }
+.btn-ghost:active:not(:disabled), .btn-danger:active:not(:disabled) { box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.12); }
+
+/* ripple grows from the pressed point */
+.ripple { position: absolute; border-radius: 50%; background: currentColor; opacity: 0.22; transform: scale(0); pointer-events: none; animation: ripple var(--t-slow) var(--ease-out) forwards; }
+@keyframes ripple { to { transform: scale(1); opacity: 0; } }
+
+/* saving / saved states (Doherty: instant feedback, then a confirmed ending) */
+.btn .spinner { animation: spin 0.8s linear infinite; }
+.btn.is-done, .btn-primary.is-done { background-color: var(--ok); color: #fff; animation: done-pop 300ms var(--spring); }
+.btn.is-done:disabled { opacity: 1; }
+@keyframes done-pop { 0% { transform: scale(0.94, 1.06); } 45% { transform: scale(1.1, 0.92); } 100% { transform: none; } }
+.draw-check polyline, .draw-check path { stroke-dasharray: 30; stroke-dashoffset: 30; animation: draw var(--t-med) var(--ease-out) 60ms forwards; }
+@keyframes draw { to { stroke-dashoffset: 0; } }
+
+/* ---------- chips, switches ---------- */
+.chip { transition: transform var(--t-med) var(--spring), background-color var(--t-fast) var(--ease-out), border-color var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out); }
+.chip:active { transform: scale(1.04, 0.93); transition-duration: var(--t-instant); }
+.chip.active { animation: chip-pop var(--t-slow) var(--spring); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25), inset 0 -2px 0 rgba(0, 0, 0, 0.18); }
+@keyframes chip-pop { 0% { transform: scale(0.92, 1.06); } 55% { transform: scale(1.06, 0.96); } 100% { transform: none; } }
+
+.switch { transition: background-color var(--t-med) var(--ease-in-out); }
+.switch::after { transition: transform var(--t-med) var(--spring), width var(--t-fast) var(--ease-out); }
+.switch:active:not(:disabled)::after { width: 27px; }                 /* knob stretches while pressed */
+.switch.on:active:not(:disabled)::after { transform: translateX(13px); }
+
+/* ---------- surfaces: depth ---------- */
+.card { box-shadow: var(--shadow), inset 0 1px 0 var(--hl); }
+.input, .ui-trigger { box-shadow: inset 0 1px 2px rgba(21, 22, 26, 0.05); }
+.progress > span { position: relative; transition: width var(--t-slow) var(--ease-in-out); }
+.progress > span::after { content: ""; position: absolute; inset: 0; border-radius: inherit; background: linear-gradient(180deg, rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0) 55%); }
+.tx-icon, .stat-icon, .brand-mark, .insight-icon { position: relative; }
+.tx-icon::after, .brand-mark::after { content: ""; position: absolute; inset: 0; border-radius: inherit; background: linear-gradient(160deg, rgba(255, 255, 255, 0.35), rgba(255, 255, 255, 0) 55%); pointer-events: none; }
+.donut-wrap { filter: drop-shadow(0 6px 10px rgba(21, 22, 26, 0.12)); }
+.rec-item { transition: box-shadow var(--t-fast) var(--ease-out), border-color var(--t-fast) var(--ease-out), background-color var(--t-fast) var(--ease-out); }
+.rec-item:hover { transform: none; }
+.table tbody tr { transition: background-color var(--t-fast) var(--ease-out); }
+
+/* ---------- first visit: items arrive one after another; revisits are instant ---------- */
+.fade-in, .stagger > *, .reminder { animation: none; }
+.page.intro .fade-in { animation: rise var(--t-slow) var(--ease-out) both; animation-delay: calc(var(--i, 0) * 45ms); }
+@keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+.page.intro > :nth-child(1) { --i: 0; } .page.intro > :nth-child(2) { --i: 1; } .page.intro > :nth-child(3) { --i: 2; }
+.page.intro > :nth-child(4) { --i: 3; } .page.intro > :nth-child(5) { --i: 4; } .page.intro > :nth-child(n+6) { --i: 5; }
+.page.intro .dash-grid > :nth-child(1) { --i: 1; } .page.intro .dash-grid > :nth-child(2) { --i: 2; } .page.intro .dash-grid > :nth-child(3) { --i: 3; }
+.page.intro .dash-grid > :nth-child(4) { --i: 4; } .page.intro .dash-grid > :nth-child(5) { --i: 5; } .page.intro .dash-grid > :nth-child(6) { --i: 6; }
+.page.intro .dash-grid > :nth-child(n+7) { --i: 7; }
+.page.intro .col-5.dash-grid > .fade-in:nth-child(1) { --i: 2; } .page.intro .col-5.dash-grid > .fade-in:nth-child(2) { --i: 3; }
+.page.intro .col-5.dash-grid > .fade-in:nth-child(3) { --i: 4; } .page.intro .col-5.dash-grid > .fade-in:nth-child(4) { --i: 5; }
+.page.intro .rec-list > *, .page.intro .tx-list > *, .page.intro .legend > * { animation: rise var(--t-slow) var(--ease-out) both; animation-delay: calc(120ms + var(--j, 0) * 40ms); }
+.page.intro :is(.rec-list, .tx-list, .legend) > :nth-child(1) { --j: 0; } .page.intro :is(.rec-list, .tx-list, .legend) > :nth-child(2) { --j: 1; }
+.page.intro :is(.rec-list, .tx-list, .legend) > :nth-child(3) { --j: 2; } .page.intro :is(.rec-list, .tx-list, .legend) > :nth-child(4) { --j: 3; }
+.page.intro :is(.rec-list, .tx-list, .legend) > :nth-child(5) { --j: 4; } .page.intro :is(.rec-list, .tx-list, .legend) > :nth-child(n+6) { --j: 5; }
+.sidebar.intro .menu > * { animation: slide-right var(--t-slow) var(--ease-out) both; animation-delay: calc(var(--k, 0) * 40ms); }
+.sidebar.intro .menu > :nth-child(1) { --k: 0; } .sidebar.intro .menu > :nth-child(2) { --k: 1; } .sidebar.intro .menu > :nth-child(3) { --k: 2; }
+.sidebar.intro .menu > :nth-child(4) { --k: 3; } .sidebar.intro .menu > :nth-child(5) { --k: 4; } .sidebar.intro .menu > :nth-child(6) { --k: 5; }
+@keyframes slide-right { from { opacity: 0; transform: translateX(-12px); } to { opacity: 1; transform: none; } }
+@media (max-width: 900px) { @keyframes slide-right { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } } }
+
+/* ---------- sidebar ---------- */
+.menu-item { transition: background-color var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out), transform var(--t-med) var(--spring); }
+.menu-item:active { transform: scale(0.97); transition-duration: var(--t-instant); }
+.menu-item.active svg { animation: nav-settle var(--t-med) var(--spring) both; }
+.menu-item.active::before { animation: bar-in var(--t-med) var(--spring) both; transform-origin: left center; }
+@keyframes nav-settle { from { transform: scale(0.86); } to { transform: none; } }
+@keyframes bar-in { from { transform: scaleY(0); } to { transform: none; } }
+@media (max-width: 900px) { .menu-item.active::before { transform-origin: center top; animation-name: bar-in-x; } @keyframes bar-in-x { from { transform: scaleX(0); } to { transform: none; } } }
+
+/* settings icon: wind-up (anticipation), spin, settle (follow-through) */
+.chip-settings { width: 40px; height: 40px; transition: background-color var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out); }
+.chip-settings svg { transition: transform var(--t-slow) var(--spring); }
+.chip-settings:active svg { transform: rotate(-40deg) scale(0.9); transition-duration: var(--t-instant); }
+
+/* ---------- menus grow out of the control that opened them (origin is set inline) ---------- */
+.ui-popover { animation: pop-in var(--t-fast) var(--ease-out) both; }
+.ui-popover.up { animation-name: pop-in; }
+@keyframes pop-in { from { opacity: 0; transform: scale(0.92); } to { opacity: 1; transform: none; } }
+.ui-chevron { transition: transform var(--t-med) var(--ease-in-out); }
+.ui-group { padding: 10px 12px 4px; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); cursor: default; }
+.ui-group:not(:first-child) { margin-top: 4px; border-top: 1px solid var(--line); }
+
+/* ---------- settings dialog: grows from the press point, drags, rubber-bands ---------- */
+.settings-overlay { animation: none; background: rgba(10, 11, 14, 0); backdrop-filter: blur(0); -webkit-backdrop-filter: blur(0); transition: background-color var(--t-med) var(--ease-in-out), backdrop-filter var(--t-med) var(--ease-in-out); }
+.settings-overlay.shown { background: rgba(10, 11, 14, 0.55); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); }
+.settings-dialog { animation: none; opacity: 0; transform: scale(0.7); transition: transform var(--t-med) var(--ease-in-out), opacity var(--t-fast) var(--ease-out); }
+.settings-overlay.shown .settings-dialog { opacity: 1; transform: none; transition: transform var(--t-slow) var(--spring), opacity var(--t-fast) var(--ease-out); }
+.settings-overlay.shown .settings-dialog.dragging { transition: none; }
+.settings-overlay.shown .settings-dialog.springing { transition: transform var(--t-slow) var(--spring); }
+.settings-head { cursor: grab; touch-action: none; user-select: none; }
+.settings-head::before { content: ""; position: absolute; top: 7px; left: 50%; width: 34px; height: 4px; margin-left: -17px; border-radius: 4px; background: var(--line); }
+.settings-dialog { position: relative; }
+.settings-close { width: 38px; height: 38px; }
+.settings-body > .acc { opacity: 0; transform: translateY(8px); transition: opacity var(--t-med) var(--ease-out), transform var(--t-med) var(--ease-out); }
+.settings-overlay.shown .settings-body > .acc { opacity: 1; transform: none; transition-delay: calc(90ms + var(--i, 0) * 45ms); }
+.settings-body > .acc:nth-child(1) { --i: 0; } .settings-body > .acc:nth-child(2) { --i: 1; } .settings-body > .acc:nth-child(3) { --i: 2; }
+
+/* accordion: fewer choices at a time */
+.acc { border-bottom: 1px solid var(--line); }
+.acc:last-child { border-bottom: none; }
+.acc-head { width: 100%; min-height: 48px; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 0; border: none; background: none; color: var(--ink); cursor: pointer; text-align: left; }
+.acc-head h4 { font-family: var(--font-body); font-size: 0.68rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); margin: 0; }
+.acc-head svg { color: var(--muted); transition: transform var(--t-med) var(--ease-in-out); }
+.acc.open .acc-head svg { transform: rotate(180deg); }
+.acc-body { display: grid; grid-template-rows: 0fr; opacity: 0; transition: grid-template-rows var(--t-slow) var(--ease-in-out), opacity var(--t-med) var(--ease-in-out); }
+.acc.open .acc-body { grid-template-rows: 1fr; opacity: 1; }
+.acc-inner { min-height: 0; overflow: hidden; }
+.acc.open .acc-inner { padding-bottom: 16px; }
+.acc-inner { transition: padding var(--t-slow) var(--ease-in-out); }
+
+/* ---------- toasts: stretch while travelling, squash on impact, settle ---------- */
+.toast-in { animation: toast-in var(--t-slow) var(--ease-out) both; }
+.toast-out { animation: toast-out var(--t-fast) var(--ease-in-out) both; }
+@keyframes toast-in {
+  0% { opacity: 0; transform: translate3d(36px, -6px, 0) scale(1.1, 0.88); }
+  55% { opacity: 1; transform: translate3d(-5px, 1px, 0) scale(0.97, 1.04); }
+  80% { transform: translate3d(2px, 0, 0) scale(1.01, 0.99); }
+  100% { transform: none; }
+}
+@keyframes toast-out { to { opacity: 0; transform: translate3d(28px, 0, 0) scale(0.96); } }
+.undo-toast { display: flex; align-items: center; justify-content: space-between; gap: 14px; width: 100%; }
+.undo-toast button { min-height: 36px; padding: 0 14px; border: none; border-radius: 999px; background: var(--primary-bg); color: var(--primary-fg); font-weight: 700; cursor: pointer; transition: transform var(--t-med) var(--spring); }
+.undo-toast button:active { transform: scale(1.05, 0.92); }
+
+/* ---------- celebration (the peak) ---------- */
+.burst-x, .burst-y, .burst-ring { position: fixed; pointer-events: none; z-index: 9999; }
+.burst-y { display: block; }
+.burst-ring { width: 64px; height: 64px; border-radius: 50%; border: 3px solid var(--lime); }
+
+/* ---------- delete with undo: wind up, then slide away; reversible while it plays ---------- */
+.table tbody tr td { transition: transform var(--t-slow) var(--anticipate), opacity var(--t-slow) var(--ease-in-out); }
+.table tbody tr.row-leaving td { transform: translateX(-28px); opacity: 0; }
+.table tbody tr.row-leaving { pointer-events: none; }
+.table tbody tr.row-back td { animation: row-back var(--t-slow) var(--spring) both; }
+@keyframes row-back { from { opacity: 0; transform: translateX(-20px); } to { opacity: 1; transform: none; } }
+.table tbody tr.row-fresh td { animation: fresh 900ms var(--ease-out) both; }
+@keyframes fresh { 0% { background-color: color-mix(in srgb, var(--lime) 55%, transparent); } 100% { background-color: transparent; } }
+
+/* ---------- Von Restorff: the one thing that should stand out ---------- */
+.badge-due { animation: due-ring 2s var(--ease-in-out) infinite; }
+@keyframes due-ring { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--coral) 45%, transparent); } 50% { box-shadow: 0 0 0 5px transparent; } }
+.rec-item.is-due { box-shadow: inset 3px 0 0 var(--coral); }
+.insight-card { border-top: 3px solid var(--lime); }
+.hero-amount.over { animation: nudge-x 260ms var(--ease-in-out) 1; }
+@keyframes nudge-x { 25% { transform: translateX(-5px); } 55% { transform: translateX(4px); } 80% { transform: translateX(-2px); } }
+
+/* ---------- Doherty: progress + skeleton ---------- */
+.net-bar { position: fixed; z-index: 3000; top: 0; left: 0; right: 0; height: 3px; opacity: 0; pointer-events: none; background: linear-gradient(90deg, transparent, var(--violet), var(--lime), transparent); background-size: 40% 100%; background-repeat: no-repeat; transition: opacity var(--t-fast) var(--ease-out); }
+[data-theme="dark"] .net-bar { background-image: linear-gradient(90deg, transparent, var(--lime), #fff, transparent); }
+.net-bar.on { opacity: 1; animation: net-slide 900ms var(--ease-in-out) infinite; }
+.net-bar.done { opacity: 0; }
+@keyframes net-slide { from { background-position: -40% 0; } to { background-position: 140% 0; } }
+.page[data-loading] :is(.stat-value, .insight-amount, .hero-amount) {
+  color: transparent !important; border-radius: 10px; width: fit-content; min-width: 7ch; user-select: none;
+  background: linear-gradient(90deg, var(--line) 25%, var(--surface-2) 50%, var(--line) 75%) 0 0 / 200% 100%; animation: shimmer 1.2s linear infinite;
+}
+.page[data-loading] .hero .hero-amount { background: linear-gradient(90deg, rgba(255,255,255,.08) 25%, rgba(255,255,255,.2) 50%, rgba(255,255,255,.08) 75%) 0 0 / 200% 100%; }
+@keyframes shimmer { to { background-position: -200% 0; } }
+
+/* ---------- Fitts: bigger, closer targets ---------- */
+.btn-icon, .cat-act, .settings-close, .cal-nav, .chip-settings { position: relative; }
+.btn-ghost.btn-icon::after, .btn-danger.btn-icon::after, .cat-act::after, .cal-nav::after { content: ""; position: absolute; inset: -5px; }
+.fab { display: none; }
+@media (max-width: 900px) {
+  .fab {
+    display: grid; place-items: center; position: fixed; z-index: 45; right: 16px;
+    bottom: calc(86px + env(safe-area-inset-bottom, 0px)); width: 58px; height: 58px; border: none; border-radius: 20px;
+    background: var(--lime); color: #15161a; cursor: pointer;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55), inset 0 -3px 0 rgba(0, 0, 0, 0.18), 0 10px 24px rgba(21, 22, 26, 0.3);
+    transition: transform var(--t-med) var(--spring), box-shadow var(--t-fast) var(--ease-out);
+    animation: fab-in var(--t-slow) var(--spring) both;
+  }
+  .fab:active { transform: scale(1.07, 0.92); box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.25), 0 4px 10px rgba(21, 22, 26, 0.25); }
+  .fab svg { transition: transform var(--t-med) var(--spring); }
+  .fab:active svg { transform: rotate(90deg); }
+  @keyframes fab-in { from { opacity: 0; transform: scale(0.4) translateY(24px); } to { opacity: 1; transform: none; } }
+}
+@media (pointer: coarse) {
+  .btn-sm { height: 40px; }
+  .btn-icon { width: 40px; }
+  .chip { height: 42px; }
+  .cat-act { width: 38px; height: 38px; }
+  .ui-option { padding: 12px 14px; }
+  .acct-row, .data-row { min-height: 48px; }
+}
+
+/* ---------- theme change grows out of the pressed point ---------- */
+::view-transition-old(root), ::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
+::view-transition-old(root) { z-index: 1; }
+::view-transition-new(root) { z-index: 2; }
+.vt *, .vt *::before, .vt *::after { transition: none !important; }
+
+/* page edge: the page itself stretches when pulled (see MotionRoot) */
+html { overscroll-behavior-y: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .ripple, .burst-ring, .burst-x { display: none; }
+  .settings-dialog, .settings-body > .acc { opacity: 1; transform: none; }
+  .settings-overlay { background: rgba(10, 11, 14, 0.55); }
+}
+
+.btn-save { min-width: 148px; }
+.btn[aria-busy="true"]:disabled { opacity: 0.85; }

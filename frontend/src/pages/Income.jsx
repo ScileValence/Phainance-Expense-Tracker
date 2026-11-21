@@ -1,9 +1,10 @@
 import DatePicker from "../components/ui/DatePicker";
 import MonthPicker from "../components/ui/MonthPicker";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import api from "../api/axios";
 import { toast } from "react-toastify";
-import { Wallet, Pencil, Trash2, X } from "lucide-react";
+import { Wallet, Pencil, Trash2, X, Check } from "lucide-react";
+import { burstFrom } from "../utils/motion";
 import Sidebar from "../components/Sidebar";
 import StatusBanner from "../components/StatusBanner";
 import { SOURCES, sourceMeta } from "../utils/income";
@@ -44,6 +45,9 @@ export default function Income() {
     setEditId(null);
   };
 
+  const [done, setDone] = useState(false);
+  const saveBtn = useRef(null);
+
   const submit = async (e) => {
     e.preventDefault();
     setSaving(true);
@@ -57,6 +61,11 @@ export default function Income() {
       if (editId) await api.put(`/income/${editId}`, payload);
       else await api.post("/income", payload);
       toast.success(editId ? "Income updated" : "Income added");
+      if (!editId) {
+        setDone(true);
+        burstFrom(saveBtn.current, { count: 7, spread: 0.8 });
+        setTimeout(() => setDone(false), 900);
+      }
       reset();
       load();
     } catch (err) {
@@ -164,8 +173,9 @@ export default function Income() {
             </div>
 
             <div className="form-actions">
-              <button type="submit" className="btn btn-primary" disabled={saving}>
-                {editId ? "Save changes" : "Add income"}
+              <button ref={saveBtn} type="submit" className={`btn btn-primary btn-save ${done ? "is-done" : ""}`} disabled={saving || done} aria-busy={saving}>
+                {done && <Check size={17} className="draw-check" strokeWidth={3} />}
+                {done ? "Added" : editId ? "Save changes" : "Add income"}
               </button>
             </div>
           </form>

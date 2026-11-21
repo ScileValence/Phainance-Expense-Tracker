@@ -17,7 +17,7 @@ import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/expenses")
-@CrossOrigin(origins = "http://localhost:5173")
+@CrossOrigin(origins = "${app.url:http://localhost:5173}")
 public class ExpenseController {
 
     private final ExpenseService expenseService;
@@ -85,7 +85,7 @@ public class ExpenseController {
         e.setUser(user);
 
         if (dto.getCategoryId() != null) {
-            categoryRepository.findById(dto.getCategoryId()).ifPresent(e::setCategory);
+            categoryRepository.findVisibleById(dto.getCategoryId(), user).ifPresent(e::setCategory);
         }
 
         return expenseService.add(e);
@@ -112,7 +112,7 @@ public class ExpenseController {
         e.setDate(dto.getDate() == null ? e.getDate() : dto.getDate());
 
         if (dto.getCategoryId() != null) {
-            categoryRepository.findById(dto.getCategoryId()).ifPresent(e::setCategory);
+            categoryRepository.findVisibleById(dto.getCategoryId(), user).ifPresent(e::setCategory);
         } else {
             e.setCategory(null);
         }

@@ -17,7 +17,7 @@ import jakarta.servlet.http.HttpServletRequest;
 
 @RestController
 @RequestMapping("/api/budget")
-@CrossOrigin(origins = "http://localhost:5173")
+@CrossOrigin(origins = "${app.url:http://localhost:5173}")
 public class BudgetController {
 
     private final BudgetService budgetService;

@@ -3,6 +3,46 @@ _All notable changes to **Phainance** will be documented in this file._
 
 ---
 
+## Version 1.8.1 - Unreleased
+**Motion and feel**
+
+### Added
+- **Press feedback:** buttons, chips and the new Add button squash on press and spring back; the notification switch knob stretches.
+- **Origin-aware motion:** Settings grows out of the control you pressed, dropdowns grow out of their trigger, ripples start at your finger, and the theme change spreads out from the toggle.
+- **Peak moments:** saving an expense, income or budget and marking a recurring payment as paid play a short check-and-confetti moment (confetti flies on arcs); the new expense row glows when you land back on the list.
+- **Delete with Undo:** expenses slide away immediately and can be restored for 5 seconds (replaces the confirm dialog). Playing animations reverse if you undo mid-way.
+- **Rubber banding:** pulling past the top or bottom of a page on touch screens stretches and springs back; Settings can be dragged down to dismiss and resists when pulled up.
+- **Progress feedback:** a thin top bar appears only when a request takes over ~120ms; the dashboard shows placeholders if the first load is slow.
+- **Mobile Add button:** a large lime button within thumb reach on Overview, Expenses and Income.
+- **Settings is easier to scan:** collapsible sections, and a short Popular list at the top of the currency menu.
+- Numbers on the dashboard count to their new value; charts animate in 280ms.
+
+### Changed
+- Entrance animations play once per screen per session (and the sidebar on first load), staggered; revisiting a screen is instant. Hover lifts on cards were removed.
+- All UI transitions are 280ms or less and use slow-in/slow-out or spring curves; depth added with highlights and shaded edges on buttons, cards and bars.
+- Touch targets are at least 40px on touch screens; small icon buttons have a larger invisible hit area.
+- `prefers-reduced-motion` turns animations off, including confetti and the theme reveal.
+
+---
+
+## Version 1.8.0 - Unreleased
+**Foundations: migrations and your own categories**
+
+### Added
+- **Flyway database migrations.** New databases get the full schema; existing ones are baselined and upgraded in place.
+- **Your own categories.** Add, rename and delete custom categories in Settings. They are private to your account; the default five stay shared and read-only. A category that is in use can't be deleted.
+- **Import creates missing categories** from the file instead of falling back to Other.
+
+### Changed
+- Duplicate categories are merged automatically (expenses and recurring payments are repointed) and can't be created again.
+- The API base URL (`VITE_API_URL`) and allowed CORS origin (`APP_URL`) now come from configuration.
+
+### Removed
+- Duplicate `src/api.js` client (everything uses `src/api/axios.js`).
+- `database/fix_duplicate_categories.sql` (replaced by migration V2) and the table definitions in `database/schema.sql`.
+
+---
+
 ## Version 1.7.0 - November 20, 2026
 **Redesign, income, recurring payments and reminders**
 

@@ -7,6 +7,7 @@ import java.time.LocalDate;
 import java.util.List;
 
 public interface ExpenseRepository extends JpaRepository<Expense, Long> {
+    long countByCategory(com.example.expensetracker.model.Category category);
 
     // Existing method (used for global filtering if needed)
     List<Expense> findByDateBetween(LocalDate start, LocalDate end);

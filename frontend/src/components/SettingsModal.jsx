@@ -1,8 +1,11 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "react-toastify";
 import { Download, Moon, Settings, Sun, Trash2, Upload, X } from "lucide-react";
 import Select from "./ui/Select";
+import CategoryManager from "./CategoryManager";
+import Collapse from "./ui/Collapse";
+import { lastPoint, reducedMotion, revealTheme, rubber } from "../utils/motion";
 import { CURRENCIES, activeCode, setCurrency, useCurrency } from "../utils/currency";
 import { authState } from "../utils/auth";
 import { closeSettings, useSettingsOpen } from "../utils/settingsStore";
@@ -33,6 +36,33 @@ function SettingsDialog({ onClose }) {
   const [panel, setPanel] = useState(null); // null | { type: "import", name, clean } | { type: "clear" }
   const [confirmText, setConfirmText] = useState("");
 
+  const [shown, setShown] = useState(false);
+  const closeTimer = useRef(0);
+  const drag = useRef(null);
+
+  // closing plays the open animation backwards; pressing close mid-open just reverses it
+  const requestClose = useCallback(() => {
+    setShown(false);
+    clearTimeout(closeTimer.current);
+    closeTimer.current = setTimeout(onClose, reducedMotion() ? 0 : 200);
+  }, [onClose]);
+
+  // grow out of the place that was pressed (origin awareness)
+  useLayoutEffect(() => {
+    const d = dialogRef.current;
+    if (!d) return;
+    const r = d.getBoundingClientRect();
+    const left = r.left + (r.width - d.offsetWidth) / 2;
+    const top = r.top + (r.height - d.offsetHeight) / 2;
+    const fresh = Date.now() - lastPoint.t < 2000;
+    d.style.transformOrigin = fresh ? `${lastPoint.x - left}px ${lastPoint.y - top}px` : "50% 50%";
+  }, []);
+
+  useEffect(() => {
+    const id = requestAnimationFrame(() => requestAnimationFrame(() => setShown(true)));
+    return () => cancelAnimationFrame(id);
+  }, []);
+
   // focus handling, Escape and background scroll lock
   useEffect(() => {
     const prev = document.activeElement;
@@ -41,7 +71,7 @@ function SettingsDialog({ onClose }) {
     document.body.style.overflow = "hidden";
     const onKey = (e) => {
       // an open dropdown (rendered in a portal) handles its own Escape first
-      if (e.key === "Escape" && !e.defaultPrevented && !document.querySelector(".ui-popover")) onClose();
+      if (e.key === "Escape" && !e.defaultPrevented && !document.querySelector(".ui-popover")) requestClose();
     };
     document.addEventListener("keydown", onKey);
     return () => {
@@ -49,11 +79,44 @@ function SettingsDialog({ onClose }) {
       document.body.style.overflow = overflow;
       prev?.focus?.();
     };
-  }, [onClose]);
+  }, [requestClose]);
+
+  // drag the header down to dismiss; pull it up and it resists, then springs back (rubber banding)
+  const onHeadDown = (e) => {
+    if (e.target.closest("button")) return;
+    drag.current = { y0: e.clientY, t0: performance.now(), dy: 0 };
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+    dialogRef.current.classList.remove("springing");
+    dialogRef.current.classList.add("dragging");
+  };
+  const onHeadMove = (e) => {
+    const g = drag.current;
+    if (!g) return;
+    g.dy = e.clientY - g.y0;
+    dialogRef.current.style.transform = `translateY(${g.dy > 0 ? g.dy : -rubber(-g.dy, 56)}px)`;
+  };
+  const onHeadUp = () => {
+    const g = drag.current;
+    if (!g) return;
+    drag.current = null;
+    const d = dialogRef.current;
+    d.classList.remove("dragging");
+    const velocity = g.dy / Math.max(1, performance.now() - g.t0);
+    if (g.dy > 110 || velocity > 0.7) {
+      d.style.transform = "translateY(110vh)";
+      requestClose();
+    } else {
+      d.classList.add("springing");
+      d.style.transform = "";
+    }
+  };
 
   const pickTheme = (next) => {
-    document.body.setAttribute("data-theme", next);
-    localStorage.setItem("theme", next);
+    if (next === theme) return;
+    revealTheme(() => {
+      document.body.setAttribute("data-theme", next);
+      localStorage.setItem("theme", next);
+    });
     setTheme(next);
   };
 
@@ -97,7 +160,7 @@ function SettingsDialog({ onClose }) {
       const { done, failed } = await applyImport(panel.clean, { replace });
       if (failed) toast.warn(`Imported ${done} items, ${failed} failed.`);
       else toast.success(`Imported ${done} items.`);
-      onClose();
+      requestClose();
       reloadSoon();
     } catch (err) {
       toast.error(`Import failed: ${errorMessage(err)}`);
@@ -110,7 +173,7 @@ function SettingsDialog({ onClose }) {
     try {
       await clearAllData();
       toast.success("All data cleared.");
-      onClose();
+      requestClose();
       reloadSoon();
     } catch (err) {
       toast.error(`Couldn't clear data: ${errorMessage(err)}`);
@@ -119,23 +182,34 @@ function SettingsDialog({ onClose }) {
   };
 
   const active = activeCode();
+  const POPULAR = ["INR", "USD", "EUR", "GBP"]; // a short list first: fewer choices to scan (Hick's law)
+  const currencyOption = (cur) => ({
+    value: cur.code,
+    label: `${cur.symbol}  ${cur.code} · ${cur.name}`,
+    disabled: cur.code !== "INR" && !rates?.[cur.code],
+  });
+  const currencyOptions = [
+    { group: true, disabled: true, value: "__popular", label: "Popular" },
+    ...CURRENCIES.filter((c) => POPULAR.includes(c.code)).map(currencyOption),
+    { group: true, disabled: true, value: "__all", label: "All currencies" },
+    ...CURRENCIES.filter((c) => !POPULAR.includes(c.code)).map(currencyOption),
+  ];
   const c = panel?.type === "import" ? panel.clean : null;
 
   return (
-    <div className="settings-overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+    <div className={`settings-overlay ${shown ? "shown" : ""}`} onMouseDown={(e) => e.target === e.currentTarget && requestClose()}>
       <div className="settings-dialog" role="dialog" aria-modal="true" aria-labelledby="settings-title" tabIndex={-1} ref={dialogRef}>
-        <div className="settings-head">
+        <div className="settings-head" onPointerDown={onHeadDown} onPointerMove={onHeadMove} onPointerUp={onHeadUp} onPointerCancel={onHeadUp}>
           <h3 id="settings-title">
             <Settings size={18} /> Settings
           </h3>
-          <button type="button" className="settings-close" onClick={onClose} aria-label="Close settings">
+          <button type="button" className="settings-close" onClick={requestClose} aria-label="Close settings">
             <X size={18} />
           </button>
         </div>
 
         <div className="settings-body">
-          <section className="settings-section">
-            <h4>Appearance</h4>
+          <Collapse title="Display" defaultOpen>
             <div className="seg" role="group" aria-label="Theme">
               <button type="button" className={theme === "light" ? "on" : ""} onClick={() => pickTheme("light")}>
                 <Sun size={15} /> Light
@@ -144,20 +218,13 @@ function SettingsDialog({ onClose }) {
                 <Moon size={15} /> Dark
               </button>
             </div>
-          </section>
-
-          <section className="settings-section">
-            <h4>Currency</h4>
+            <div className="sub-label">Currency</div>
             <Select
               name="currency"
               value={active}
               ariaLabel="Display currency"
               onChange={(e) => setCurrency(e.target.value)}
-              options={CURRENCIES.map((cur) => ({
-                value: cur.code,
-                label: `${cur.symbol}  ${cur.code} · ${cur.name}`,
-                disabled: cur.code !== "INR" && !rates?.[cur.code],
-              }))}
+              options={currencyOptions}
             />
             <p className="settings-note">
               {rates ? "Amounts are stored in INR and converted for display." : "Live rates unavailable: showing INR."}{" "}
@@ -165,10 +232,14 @@ function SettingsDialog({ onClose }) {
                 Rates by ExchangeRate-API
               </a>
             </p>
-          </section>
+          </Collapse>
 
-          <section className="settings-section">
-            <h4>Your data</h4>
+          <Collapse title="Categories">
+            <CategoryManager />
+            <p className="settings-note">A category in use can't be deleted. Move its expenses to another category first.</p>
+          </Collapse>
+
+          <Collapse title="Your data">
             <p className="settings-note" style={{ marginTop: 0 }}>
               {guest ? "Guest data lives only in this browser." : "Data is saved to your account."} Exports are JSON files.
             </p>
@@ -257,7 +328,7 @@ function SettingsDialog({ onClose }) {
                 </div>
               </div>
             )}
-          </section>
+          </Collapse>
         </div>
       </div>
     </div>

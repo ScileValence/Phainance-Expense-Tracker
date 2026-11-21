@@ -23,7 +23,7 @@ import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/recurring")
-@CrossOrigin(origins = "http://localhost:5173")
+@CrossOrigin(origins = "${app.url:http://localhost:5173}")
 public class RecurringPaymentController {
 
     private final RecurringPaymentRepository recurringRepository;
@@ -66,7 +66,7 @@ public class RecurringPaymentController {
     }
 
     /** Validates the DTO and copies it onto the entity. Returns an error message or null. */
-    private String apply(RecurringPaymentDTO dto, RecurringPayment r) {
+    private String apply(RecurringPaymentDTO dto, RecurringPayment r, User user) {
         if (dto.getTitle() == null || dto.getTitle().isBlank()) return "Title is required";
         if (dto.getAmount() == null || dto.getAmount() <= 0) return "Amount must be greater than 0";
         if (dto.getIntervalValue() == null || dto.getIntervalValue() < 1 || dto.getIntervalValue() > 1000)
@@ -105,7 +105,7 @@ public class RecurringPaymentController {
         }
 
         if (dto.getCategoryId() != null) {
-            categoryRepository.findById(dto.getCategoryId()).ifPresent(r::setCategory);
+            categoryRepository.findVisibleById(dto.getCategoryId(), user).ifPresent(r::setCategory);
         } else {
             r.setCategory(null);
         }
@@ -126,7 +126,7 @@ public class RecurringPaymentController {
         if (user == null) return ResponseEntity.status(401).build();
 
         RecurringPayment r = new RecurringPayment();
-        String err = apply(dto, r);
+        String err = apply(dto, r, user);
         if (err != null) return bad(err);
         r.setUser(user);
         r.setActive(true);
@@ -147,7 +147,7 @@ public class RecurringPaymentController {
 
         RecurringPayment r = or.get();
         Map<String, String> before = notifications.snapshot(r);
-        String err = apply(dto, r);
+        String err = apply(dto, r, user);
         if (err != null) return bad(err);
         RecurringPayment saved = recurringRepository.save(r);
         notifications.notifyEdited(user, saved, before); // edited -> email (only if something changed)

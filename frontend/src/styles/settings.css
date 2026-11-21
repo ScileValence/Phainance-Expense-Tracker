@@ -52,3 +52,17 @@
   .settings-overlay { align-items: end; padding: 0; }
   .settings-dialog { width: 100%; max-height: 90dvh; border-radius: 22px 22px 0 0; }
 }
+
+/* categories */
+.cat-list { display: flex; flex-direction: column; gap: 6px; max-height: 232px; overflow-y: auto; }
+.cat-row { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 6px 8px 6px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2); }
+.cat-row .name { flex: 1; min-width: 0; font-size: 0.9rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cat-row .input { flex: 1; min-width: 0; }
+.cat-tag { padding-right: 6px; font-size: 0.66rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.cat-act { width: 30px; height: 30px; flex: none; display: grid; place-items: center; border: none; border-radius: 8px; background: transparent; color: var(--muted); cursor: pointer; transition: background 0.15s ease, color 0.15s ease; }
+.cat-act:hover { background: var(--line); color: var(--ink); }
+.cat-act.danger:hover { color: var(--coral); }
+.cat-add { display: flex; gap: 8px; margin-top: 10px; }
+.cat-add .input { flex: 1; min-width: 0; }
+
+.sub-label { margin: 16px 0 8px; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }

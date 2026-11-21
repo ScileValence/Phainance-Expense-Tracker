@@ -3,6 +3,7 @@ import DatePicker from "../components/ui/DatePicker";
 import TimePicker from "../components/ui/TimePicker";
 import React, { useContext, useEffect, useState } from "react";
 import api from "../api/axios";
+import { useCategories } from "../utils/categories";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 import {
@@ -17,6 +18,7 @@ import { colorFor } from "../utils/palette";
 import {
   UNITS, hhmm, isDue, isSoon, intervalLabel, formatDue, relativeDue, money,
 } from "../utils/recurring";
+import { burst, centerOf } from "../utils/motion";
 import "../styles/dashboard.css";
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
@@ -33,14 +35,13 @@ const emptyForm = () => ({
 export default function Recurring() {
   const navigate = useNavigate();
   const { recurring, loadRecurring, confirmRecurring, skipRecurring, now } = useContext(AppContext);
-  const [categories, setCategories] = useState([]);
+  const { categories } = useCategories();
   const [form, setForm] = useState(emptyForm());
   const [editId, setEditId] = useState(null);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     loadRecurring();
-    api.get("/categories").then((r) => setCategories(r.data || [])).catch(() => toast.error("Failed to load categories."));
   }, [navigate, loadRecurring]);
 
   const set = (e) => {
@@ -98,8 +99,10 @@ export default function Recurring() {
       await fn();
       if (okMsg) toast.success(okMsg);
       await loadRecurring();
+      return true;
     } catch {
       toast.error("Something went wrong");
+      return false;
     }
   };
 
@@ -239,7 +242,10 @@ export default function Recurring() {
                       <div className="rec-actions">
                         {due && (
                           <>
-                            <button className="btn btn-primary btn-sm" onClick={() => act(() => confirmRecurring(r.id), "Logged as expense")}>
+                            <button className="btn btn-primary btn-sm" onClick={(e) => {
+                              const { x, y } = centerOf(e.currentTarget); // the payment is a rare, meaningful moment: bigger burst
+                              act(() => confirmRecurring(r.id), "Logged as expense").then((ok) => ok && burst(x, y, { count: 12, spread: 1.15 }));
+                            }}>
                               <Check size={14} /> Paid
                             </button>
                             <button className="btn btn-ghost btn-sm" onClick={() => act(() => skipRecurring(r.id), "Skipped")}>

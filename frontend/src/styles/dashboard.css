@@ -108,7 +108,7 @@
 }
 @media (max-width: 900px) {
   .app-shell { flex-direction: column; }
-  .page { padding: calc(64px + env(safe-area-inset-top, 0px)) 16px 96px; }
+  .page { padding: calc(24px + env(safe-area-inset-top, 0px)) 16px 96px; }
 }
 @media (max-width: 560px) {
   .col-3 { grid-column: span 12; }

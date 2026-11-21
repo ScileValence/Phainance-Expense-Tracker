@@ -1,18 +1,20 @@
 import Select from "./ui/Select";
 import DatePicker from "./ui/DatePicker";
-import React, { useEffect, useState } from "react";
-import api from "../api";
+import React, { useRef, useState } from "react";
+import api from "../api/axios";
+import { useCategories } from "../utils/categories";
+import { burstFrom } from "../utils/motion";
 import StatusBanner from "./StatusBanner";
 import { toBase, currencySymbol } from "../utils/currency";
 import Sidebar from "./Sidebar";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Check, Loader2 } from "lucide-react";
 import "../styles/dashboard.css";
 
 export default function AddExpense() {
   const navigate = useNavigate();
-  const [categories, setCategories] = useState([]);
+  const { categories } = useCategories();
   const [form, setForm] = useState({
     amount: "",
     description: "",
@@ -20,20 +22,19 @@ export default function AddExpense() {
     categoryId: "",
   });
 
-  useEffect(() => {
-    api
-      .get("/categories")
-      .then((res) => setCategories(res.data || []))
-      .catch(() => toast.error("Failed to load categories."));
-  }, [navigate]);
-
   const handleChange = (e) => {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
   };
 
+  // idle -> saving (instant spinner) -> done (check + burst) -> back to the list with the new row highlighted
+  const [phase, setPhase] = useState("idle");
+  const saveBtn = useRef(null);
+
   const submitExpense = (e) => {
     e.preventDefault();
+    if (phase !== "idle") return;
+    setPhase("saving");
     api
       .post("/expenses", {
         amount: toBase(form.amount),
@@ -41,11 +42,16 @@ export default function AddExpense() {
         date: form.date,
         categoryId: form.categoryId ? parseInt(form.categoryId) : null,
       })
-      .then(() => {
+      .then((res) => {
+        setPhase("done");
+        burstFrom(saveBtn.current, { count: 7, spread: 0.8 });
         toast.success("Expense added");
-        navigate("/list");
+        setTimeout(() => navigate("/list", { state: { fresh: res?.data?.id } }), 380);
       })
-      .catch(() => toast.error("Failed to add expense"));
+      .catch(() => {
+        setPhase("idle");
+        toast.error("Failed to add expense");
+      });
   };
 
   return (
@@ -92,7 +98,17 @@ export default function AddExpense() {
             </div>
           </div>
           <div className="form-actions">
-            <button type="submit" className="btn btn-primary">Add expense</button>
+            <button
+              ref={saveBtn}
+              type="submit"
+              className={`btn btn-primary btn-save ${phase === "done" ? "is-done" : ""}`}
+              disabled={phase !== "idle"}
+              aria-busy={phase === "saving"}
+            >
+              {phase === "saving" && <Loader2 size={17} className="spinner" />}
+              {phase === "done" && <Check size={17} className="draw-check" strokeWidth={3} />}
+              {phase === "done" ? "Added" : phase === "saving" ? "Saving" : "Add expense"}
+            </button>
             <button type="button" className="btn btn-ghost" onClick={() => navigate("/list")}>Cancel</button>
           </div>
         </form>

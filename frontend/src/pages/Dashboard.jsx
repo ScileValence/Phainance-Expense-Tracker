@@ -2,6 +2,7 @@ import MonthPicker from "../components/ui/MonthPicker";
 import React, { useContext, useEffect, useState, useCallback } from "react";
 import api from "../api/axios";
 import { useNavigate } from "react-router-dom";
+import CountUp from "../components/CountUp";
 import { Plus, Wallet, TrendingDown, PiggyBank, Repeat, ChevronRight, Lightbulb, ArrowUpRight, ArrowDownRight, Minus } from "lucide-react";
 import {
   PieChart, Pie, Cell, Tooltip as ReTooltip,
@@ -45,6 +46,18 @@ export default function Dashboard() {
   const [dailyData, setDailyData] = useState([]);
   const [trendData, setTrendData] = useState([]);
   const [incomeTotal, setIncomeTotal] = useState(0);
+  const [loaded, setLoaded] = useState(false);
+  const [skeleton, setSkeleton] = useState(false);
+
+  // a placeholder appears only if the first load takes longer than ~150ms
+  useEffect(() => {
+    if (loaded) {
+      setSkeleton(false);
+      return undefined;
+    }
+    const t = setTimeout(() => setSkeleton(true), 150);
+    return () => clearTimeout(t);
+  }, [loaded]);
 
   useEffect(() => {
     setUsername(authState().username);
@@ -61,6 +74,7 @@ export default function Dashboard() {
           api.get(`/income?month=${forMonth}`),
           api.get(`/analytics/trend?month=${forMonth}&months=6`).catch(() => ({ data: [] })),
         ]);
+        setLoaded(true);
         setExpenses(exp.data || []);
         setBudgetData(bud.data || { month: forMonth, limit: 0, spent: 0 });
         setCategoryData(cat.data || []);
@@ -69,6 +83,7 @@ export default function Dashboard() {
         setIncomeTotal((inc.data || []).reduce((t, i) => t + (i.amount || 0), 0));
       } catch (err) {
         console.error("Dashboard fetch failed:", err);
+        setLoaded(true);
         if (err.response?.status === 401 && localStorage.getItem("token")) {
           localStorage.removeItem("token");
           navigate("/login");
@@ -119,7 +134,7 @@ export default function Dashboard() {
     <div className="app-shell">
       <Sidebar />
 
-      <main className="page">
+      <main className="page" data-loading={skeleton ? "" : undefined}>
         <StatusBanner />
         <header className="page-head fade-in">
           <div>
@@ -142,7 +157,7 @@ export default function Dashboard() {
             <div>
               <div className="eyebrow">{limit > 0 ? (remaining >= 0 ? "Left to spend" : "Over budget by") : "Spent this month"}</div>
               <div className={`hero-amount ${remaining < 0 && limit > 0 ? "over" : ""}`}>
-                {money(limit > 0 ? Math.abs(remaining) : totalSpent)}
+                <CountUp value={limit > 0 ? Math.abs(remaining) : totalSpent} format={money} />
               </div>
             </div>
             <div>
@@ -158,16 +173,16 @@ export default function Dashboard() {
           <div className="col-5 dash-grid" style={{ gap: 20, gridTemplateColumns: "1fr 1fr", alignContent: "stretch" }}>
             <div className="card stat fade-in" style={{ cursor: "pointer" }} onClick={() => navigate("/income")}>
               <div className="stat-icon"><Wallet size={19} /></div>
-              <div><div className="stat-value">{money(incomeTotal)}</div><div className="stat-label">Income</div></div>
+              <div><div className="stat-value"><CountUp value={incomeTotal} format={money} /></div><div className="stat-label">Income</div></div>
             </div>
             <div className="card stat fade-in">
               <div className="stat-icon"><TrendingDown size={19} /></div>
-              <div><div className="stat-value">{money(totalSpent)}</div><div className="stat-label">Spent</div></div>
+              <div><div className="stat-value"><CountUp value={totalSpent} format={money} /></div><div className="stat-label">Spent</div></div>
             </div>
             <div className="card stat fade-in">
               <div className="stat-icon"><PiggyBank size={19} /></div>
               <div>
-                <div className="stat-value" style={{ color: saved < 0 ? "var(--danger)" : undefined }}>{money(saved)}</div>
+                <div className="stat-value" style={{ color: saved < 0 ? "var(--danger)" : undefined }}><CountUp value={saved} format={money} /></div>
                 <div className="stat-label">{saved < 0 ? "Overspent" : "Saved"}</div>
               </div>
             </div>
@@ -178,7 +193,7 @@ export default function Dashboard() {
           </div>
 
           {/* money insight */}
-          <section className="card col-5 fade-in">
+          <section className="card insight-card col-5 fade-in">
             <div className="card-head">
               <div><h3 className="card-title">Money insight</h3><div className="card-sub">{monthLabel}</div></div>
               <div className="insight-icon"><Lightbulb size={18} /></div>
@@ -192,7 +207,7 @@ export default function Dashboard() {
                   <span className="dot" style={{ background: top.color }} />
                   <strong>{top.name}</strong>
                 </div>
-                <div className="insight-amount">{money(top.value)}</div>
+                <div className="insight-amount"><CountUp value={top.value} format={money} /></div>
                 <div className="progress"><span style={{ width: `${top.share}%`, background: top.color }} /></div>
                 <p className="insight-note">
                   {top.share}% of this month’s spending
@@ -200,7 +215,7 @@ export default function Dashboard() {
                 </p>
                 {ranked.length > 1 && (
                   <div className="insight-rank">
-                    {ranked.slice(1, 4).map((c) => (
+                    {ranked.slice(1, 3).map((c) => (
                       <div className="insight-rank-row" key={c.name}>
                         <span className="dot" style={{ background: c.color }} />
                         <span className="name">{c.name}</span>
@@ -235,7 +250,7 @@ export default function Dashboard() {
                     <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fill: "var(--muted)", fontSize: 12 }} />
                     <YAxis tickLine={false} axisLine={false} tick={{ fill: "var(--muted)", fontSize: 12 }} tickFormatter={compact} />
                     <ReTooltip content={<TrendTip />} cursor={{ fill: "var(--surface-2)" }} />
-                    <Bar dataKey="amount" radius={[8, 8, 0, 0]} maxBarSize={48}>
+                    <Bar dataKey="amount" radius={[8, 8, 0, 0]} maxBarSize={48} animationDuration={280} animationEasing="ease-in-out">
                       {trendRows.map((t, i) => <Cell key={i} fill="#6d5ef5" fillOpacity={t.current ? 1 : 0.35} />)}
                     </Bar>
                   </BarChart>
@@ -256,7 +271,7 @@ export default function Dashboard() {
                 <div className="donut-wrap">
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
-                      <Pie data={categoryData} dataKey="value" nameKey="name" innerRadius="66%" outerRadius="92%" paddingAngle={3} stroke="none">
+                      <Pie data={categoryData} dataKey="value" nameKey="name" innerRadius="66%" outerRadius="92%" paddingAngle={3} stroke="none" animationDuration={280} animationEasing="ease-in-out">
                         {categoryData.map((c, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
                       </Pie>
                       <ReTooltip content={<ChartTip />} />
@@ -295,7 +310,7 @@ export default function Dashboard() {
                   <XAxis dataKey="date" tickLine={false} axisLine={false} tick={{ fill: "var(--muted)", fontSize: 12 }} tickFormatter={(d) => String(d).slice(-2)} />
                   <YAxis tickLine={false} axisLine={false} tick={{ fill: "var(--muted)", fontSize: 12 }} tickFormatter={compact} />
                   <ReTooltip content={<ChartTip />} cursor={{ stroke: "var(--muted)", strokeDasharray: 4 }} />
-                  <Area type="monotone" dataKey="amount" stroke="#6d5ef5" strokeWidth={2.5} fill="url(#spendFill)" />
+                  <Area type="monotone" animationDuration={280} animationEasing="ease-in-out" dataKey="amount" stroke="#6d5ef5" strokeWidth={2.5} fill="url(#spendFill)" />
                 </AreaChart>
               </ResponsiveContainer>
             </div>

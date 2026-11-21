@@ -101,7 +101,52 @@ export async function guestAdapter(config) {
   const id = Number(idRaw);
 
   // ----- categories -----
-  if (root === "categories" && method === "get") return ok(db.categories);
+  if (root === "categories") {
+    const isBuiltIn = (c) => c.id <= DEFAULT_CATS.length;
+    const view = (c) => ({ ...c, builtIn: isBuiltIn(c) });
+    const cleanName = (v) => String(v ?? "").trim().replace(/\s+/g, " ");
+    const taken = (name, exceptId) => db.categories.some((c) => c.id !== exceptId && c.name.toLowerCase() === name.toLowerCase());
+    const checkName = (name, exceptId) => {
+      if (!name) return fail(400, "Enter a category name");
+      if (name.length > 40) return fail(400, "Name must be 40 characters or fewer");
+      if (taken(name, exceptId)) return fail(409, "A category with that name already exists");
+      return null;
+    };
+
+    if (method === "get") return ok(db.categories.map(view));
+    if (method === "post") {
+      const name = cleanName(body.name);
+      checkName(name, null);
+      const c = { id: db.nextId++, name };
+      db.categories.push(c);
+      save(db);
+      return ok(view(c));
+    }
+
+    const c = db.categories.find((x) => x.id === id);
+    if (!c) return fail(404, "Category not found");
+    if (isBuiltIn(c)) return fail(403, "Default categories can't be changed");
+    if (method === "put") {
+      const name = cleanName(body.name);
+      checkName(name, c.id);
+      c.name = name;
+      [...db.expenses, ...db.recurring].forEach((x) => {
+        if (x.category?.id === c.id) x.category = { ...x.category, name };
+      });
+      save(db);
+      return ok(view(c));
+    }
+    if (method === "delete") {
+      const expenses = db.expenses.filter((x) => x.category?.id === c.id).length;
+      const recurring = db.recurring.filter((x) => x.category?.id === c.id).length;
+      if (expenses || recurring) {
+        return fail(409, `In use by ${expenses} expense(s) and ${recurring} recurring payment(s). Move them to another category first.`);
+      }
+      db.categories = db.categories.filter((x) => x.id !== c.id);
+      save(db);
+      return ok(null);
+    }
+  }
 
   // ----- expenses -----
   if (root === "expenses") {

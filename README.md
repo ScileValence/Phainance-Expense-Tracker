@@ -126,7 +126,7 @@ git checkout 1.7
 CREATE DATABASE expense_tracker;
 ```
 
-Tables are created and updated automatically by Hibernate on first start. The default credentials are `root` / `root`; override them as described under [Configuration](#configuration).
+Tables are created and updated by Flyway migrations (`backend/src/main/resources/db/migration`) on first start; existing databases are upgraded in place. The default credentials are `root` / `root`; override them as described under [Configuration](#configuration).
 
 ### 3. Run the backend
 
@@ -214,7 +214,7 @@ All endpoints except `/api/auth/**` require `Authorization: Bearer <token>`.
 | Area | Endpoints |
 |------|-----------|
 | Auth | `POST /api/auth/register`, `POST /api/auth/login`, `POST /api/auth/verify-email` |
-| Categories | `GET /api/categories` |
+| Categories | `GET /api/categories`, `POST`, `PUT /{id}`, `DELETE /{id}` (default categories are read-only) |
 | Expenses | `GET /api/expenses?month=YYYY-MM`, `POST`, `PUT /{id}`, `DELETE /{id}` |
 | Income | `GET /api/income?month=YYYY-MM`, `POST`, `PUT /{id}`, `DELETE /{id}` |
 | Budget | `GET /api/budget?month=YYYY-MM`, `POST`, `PUT` |

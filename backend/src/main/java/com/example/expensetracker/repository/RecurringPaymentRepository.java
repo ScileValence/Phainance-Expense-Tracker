@@ -12,6 +12,8 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 public interface RecurringPaymentRepository extends JpaRepository<RecurringPayment, Long> {
+    long countByCategory(com.example.expensetracker.model.Category category);
+
     List<RecurringPayment> findByUserOrderByNextDueDateAscDueTimeAsc(User user);
 
     // used by the reminder scheduler (user is loaded eagerly: no open session there)
