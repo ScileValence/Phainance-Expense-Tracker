@@ -182,7 +182,7 @@ export default function Dashboard() {
             <div className="card stat fade-in">
               <div className="stat-icon"><PiggyBank size={19} /></div>
               <div>
-                <div className="stat-value" style={{ color: saved < 0 ? "var(--danger)" : undefined }}><CountUp value={saved} format={money} /></div>
+                <div className="stat-value" style={{ color: saved > 0 ? "var(--ok)" : saved < 0 ? "var(--danger)" : undefined }}><CountUp value={saved} format={money} /></div>
                 <div className="stat-label">{saved < 0 ? "Overspent" : "Saved"}</div>
               </div>
             </div>
