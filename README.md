@@ -166,6 +166,18 @@ Settings are read from `backend/src/main/resources/application.properties`, and 
 | `VAPID_PRIVATE_KEY` | Web push private key | empty |
 | `VAPID_SUBJECT` | Contact for push services, `mailto:you@example.com` | `mailto:admin@example.com` |
 | `APP_URL` | Public frontend URL used in email links | `http://localhost:5173` |
+| `app.summary.cron` | When the summary emails go out (Spring cron, server time) | `0 0 8 * * *` (08:00 daily) |
+| `DDL_AUTO` | Hibernate schema mode. `validate` checks the entities against the Flyway schema on start | `update` |
+
+---
+
+## Tests
+
+```bash
+cd backend && mvn test                              # unit tests: alert rules, schedules, rate limiter, emails, date ranges
+cd frontend && npm test                             # unit tests: expense filters, sorting, CSV export
+DB_CMD="mysql -uroot -proot" database/tests/test-migrations.sh   # applies the migrations to a throw-away database and checks the result
+```
 
 ---
 
@@ -193,6 +205,17 @@ Web push requires `localhost` or HTTPS and the user's permission in the browser.
 
 Open the Recurring page, find the Reminder alerts card, enable Push on this device and use Send test. Email reminders go to the address on the account and are enabled once that address is verified.
 
+### Choosing which emails you get
+
+Settings, then Emails (signed-in accounts with a verified address):
+
+- **Payment reminders:** at the due time of a recurring payment (the same switch as the Email row on the Recurring page's Reminder alerts card).
+- **Budget alerts:** at 80% of a budget and when you go over it.
+- **Payment updates:** when a payment is paused, resumed, skipped, paid, edited or stopped.
+- **Summary email:** off by default. Weekly (Mondays, covering the Monday to Sunday before) or monthly (the 1st, covering the previous month): total spent, change since the period before, top categories, the biggest expense, the budget used (monthly) and what is due in the next 7 days. Turning it on never sends an old period, and a period is never sent twice, even after a restart or downtime. "Send me a sample" mails the latest completed period straight away (at most once a minute).
+
+The summary is checked once a day at the time set by `app.summary.cron`.
+
 ---
 
 ## How the main features work
@@ -215,7 +238,7 @@ All endpoints except `/api/auth/**` require `Authorization: Bearer <token>`.
 |------|-----------|
 | Auth | `POST /api/auth/register`, `POST /api/auth/login`, `POST /api/auth/verify-email` |
 | Categories | `GET /api/categories`, `POST`, `PUT /{id}`, `DELETE /{id}` (default categories are read-only) |
-| Expenses | `GET /api/expenses?month=YYYY-MM`, `POST`, `PUT /{id}`, `DELETE /{id}` |
+| Expenses | `GET /api/expenses?month=YYYY-MM` or `?from=YYYY-MM-DD&to=YYYY-MM-DD`, `POST`, `PUT /{id}`, `DELETE /{id}` |
 | Income | `GET /api/income?month=YYYY-MM`, `POST`, `PUT /{id}`, `DELETE /{id}` |
 | Budget | `GET /api/budget?month=YYYY-MM`, `POST`, `PUT` |
 | Analytics | `GET /api/analytics/category`, `/daily`, `/monthly`, `/budget-trend` |
@@ -230,10 +253,11 @@ The project is set up for local development. Before deploying publicly:
 
 - Set `JWT_SECRET`, `DB_USERNAME` and `DB_PASSWORD` to real values; do not rely on the defaults.
 - Serve the app over HTTPS and set `APP_URL` to the public address.
-- Update the allowed origin: controllers and the security configuration allow `http://localhost:5173` only.
-- Replace `spring.jpa.hibernate.ddl-auto=update` with a migration tool such as Flyway.
+- `APP_URL` is also the browser origin the API accepts, so it must be your public frontend address.
+- The schema is managed by Flyway. Once it has run on your database, set `DDL_AUTO=validate` so Hibernate only checks it.
 - Use a transactional email provider and a domain you control.
-- Consider moving the token from `localStorage` to an httpOnly cookie, and add rate limiting on login.
+- Behind a reverse proxy the login limiter sees the proxy's address, which would let anyone lock out any account. Set `server.forward-headers-strategy=framework` only if your proxy overwrites `X-Forwarded-For`; if it does not, clients could fake their address, so leave it off and limit logins at the proxy instead.
+- Consider moving the token from `localStorage` to an httpOnly cookie, and consider rate limiting at your proxy as well (logins are already limited to 5 failures per username and address in 15 minutes).
 
 ---
 

@@ -3,6 +3,61 @@ _All notable changes to **Phainance** will be documented in this file._
 
 ---
 
+## Version 1.11.0 - Unreleased
+**Summary emails and email preferences**
+
+### Added
+- **Weekly or monthly summary email** (off by default): total spent, change since the period before, top categories, the biggest expense, how much of the monthly budget was used, and the payments due in the next 7 days. Weeks run Monday to Sunday and months are calendar months; only a completed period is sent, once, and turning it on never sends an old one. A "Send me a sample" button previews it.
+- **Choose your emails.** Settings, then Emails, has separate switches for payment reminders, budget alerts and payment updates, plus the summary option. Each saves immediately.
+- Tests for the email rules, the period planner and the summary numbers; the migration test now checks the new preference columns.
+
+### Changed
+- The Email switch on the Recurring page's Reminder alerts card now covers due-payment reminders only. Payment updates and budget alerts have their own switches in Settings. Anyone who had email reminders off keeps getting no payment or budget emails (the migration copies the setting).
+
+### Fixed
+- The plain-text version of budget alert emails linked to the Recurring page instead of the Budget page.
+
+### Database
+- New migration `V4__email_preferences.sql` (four columns on `users`).
+
+---
+
+## Version 1.10.0 - Unreleased
+**Search, filters, sort and export for expenses**
+
+### Added
+- **Search and filters on the Expenses page.** Search by description or category, filter by category (including "No category") and by minimum and maximum amount, and clear everything with one click. The header shows "7 of 12 entries" and the total for what you see.
+- **Periods.** Beyond a single month you can list the last 3 months, this year, all time, or a custom date range (`GET /api/expenses?from=&to=`; a bad or reversed range falls back to the month, and a range is capped in length).
+- **Sorting.** Newest, oldest, highest or lowest amount, or description A to Z, from the menu or by clicking a column heading.
+- **Export CSV.** Downloads exactly the rows you are looking at (filtered and sorted), in your display currency with a currency column. The file opens correctly in Excel (UTF-8) and text that looks like a formula is neutralised so a spreadsheet will not run it.
+- **Tests:** filters and sorting, the CSV builder (`npm test`), and date-range resolution.
+
+---
+
+## Version 1.9.1 - Unreleased
+**Quality pass**
+
+### Added
+- **Login rate limiting.** After 5 failed attempts for the same username and address within 15 minutes, further attempts get a "Try again in N minutes" message (HTTP 429) until the oldest failure ages out. A correct password does not end a lock-out early. The login screen now shows the server's message instead of always saying "Invalid username or password".
+- **Tests.** Recurring schedule dates (month ends, leap years, anchors), the five payment status emails, and the login limiter, plus `database/tests/test-migrations.sh`, which applies the migrations to a throw-away database and checks the merged categories and limits.
+- **`DDL_AUTO` setting.** Set `DDL_AUTO=validate` to have Hibernate check the entities against the Flyway schema on start. The default is unchanged (`update`).
+
+---
+
+## Version 1.9.0 - Unreleased
+**Per-category budgets and alerts**
+
+### Added
+- **Category limits.** Set a monthly cap for any category on the Budget page; limits apply every month and are private to your account.
+- **Budget alerts.** When spending crosses 80% of a limit, and again when it goes over, you get an email (same look as the payment emails, if email reminders are on) and a push notification. This covers both the overall monthly budget and category limits, and applies to expenses you add, edit, or log with Mark as paid. Adding more after you are already over does not repeat the alert.
+- **In-app heads-up.** The Add expense screen shows how an entry affects the overall budget and the category limit before you save, and a toast appears if saving crosses a line (also in guest mode).
+- **Unit tests** for the alert rules and the email templates (`mvn test`).
+
+### Database
+- New migration `V3__category_budgets.sql` (table `category_budgets`).
+
+---
+
 ## Version 1.8.1 - Unreleased
 **Motion and feel**
 

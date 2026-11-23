@@ -27,6 +27,19 @@ public class User {
 
     // null = account created before verification existed, treated as verified
     private Boolean emailVerified;
+
+    // which emails this person wants (null = on, for the older kinds) and the optional weekly / monthly summary
+    @Column(name = "email_budget_alerts")
+    private Boolean emailBudgetAlerts;
+
+    @Column(name = "email_payment_updates")
+    private Boolean emailPaymentUpdates;
+
+    @Column(name = "summary_frequency")
+    private String summaryFrequency; // OFF, WEEKLY, MONTHLY (null = OFF)
+
+    @Column(name = "summary_last_period")
+    private java.time.LocalDate summaryLastPeriod; // end of the last period a summary was sent for
     @JsonIgnore
     private String verificationTokenHash;
     @JsonIgnore
@@ -65,6 +78,18 @@ public class User {
     public boolean isEmailRemindersEnabled() { return emailReminders == null || emailReminders; }
     public Boolean getEmailReminders() { return emailReminders; }
     public void setEmailReminders(Boolean emailReminders) { this.emailReminders = emailReminders; }
+
+    public Boolean getEmailBudgetAlerts() { return emailBudgetAlerts; }
+    public void setEmailBudgetAlerts(Boolean v) { this.emailBudgetAlerts = v; }
+
+    public Boolean getEmailPaymentUpdates() { return emailPaymentUpdates; }
+    public void setEmailPaymentUpdates(Boolean v) { this.emailPaymentUpdates = v; }
+
+    public String getSummaryFrequency() { return summaryFrequency; }
+    public void setSummaryFrequency(String v) { this.summaryFrequency = v; }
+
+    public java.time.LocalDate getSummaryLastPeriod() { return summaryLastPeriod; }
+    public void setSummaryLastPeriod(java.time.LocalDate v) { this.summaryLastPeriod = v; }
 
     public boolean isEmailVerified() { return emailVerified == null || emailVerified; }
     public Boolean getEmailVerified() { return emailVerified; }

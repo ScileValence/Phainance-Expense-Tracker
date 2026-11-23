@@ -7,6 +7,7 @@ import { burstFrom } from "../utils/motion";
 import StatusBanner from "./StatusBanner";
 import { toBase, toInput, money, currencySymbol } from "../utils/currency";
 import { colorFor } from "../utils/palette";
+import { crossed, percent } from "../utils/budgetAlert";
 import Sidebar from "./Sidebar";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
@@ -33,6 +34,7 @@ export default function AddExpense() {
   const amountRef = useRef(null);
   const [budget, setBudget] = useState(null); // { limit, spent } for the month of the chosen date
   const [recent, setRecent] = useState([]);
+  const [catLimits, setCatLimits] = useState([]); // monthly limits per category (with spent so far)
   const entryMonth = (form.date || "").slice(0, 7);
 
   useEffect(() => {
@@ -42,6 +44,18 @@ export default function AddExpense() {
       .get(`/budget?month=${entryMonth}`)
       .then((res) => live && setBudget(res.data || null))
       .catch(() => live && setBudget(null));
+    return () => {
+      live = false;
+    };
+  }, [entryMonth]);
+
+  useEffect(() => {
+    if (!entryMonth) return;
+    let live = true;
+    api
+      .get(`/budget/categories?month=${entryMonth}`)
+      .then((res) => live && setCatLimits(res.data || []))
+      .catch(() => live && setCatLimits([]));
     return () => {
       live = false;
     };
@@ -83,6 +97,10 @@ export default function AddExpense() {
   const usedPct = limit > 0 ? Math.min(100, (spentSoFar / limit) * 100) : 0;
   const thisPct = limit > 0 ? Math.min(100 - usedPct, (amountBase / limit) * 100) : 0;
   const accent = picked ? colorFor(picked.name) : undefined;
+  const catRow = catLimits.find((r) => String(r.categoryId) === String(form.categoryId));
+  const catAfter = catRow ? catRow.limit - catRow.spent - amountBase : 0;
+  const catUsedPct = catRow ? Math.min(100, (catRow.spent / catRow.limit) * 100) : 0;
+  const catThisPct = catRow ? Math.min(100 - catUsedPct, (amountBase / catRow.limit) * 100) : 0;
 
   // idle -> saving (instant spinner) -> done (check + burst) -> back to the list with the new row highlighted
   const [phase, setPhase] = useState("idle");
@@ -103,6 +121,14 @@ export default function AddExpense() {
         setPhase("done");
         burstFrom(saveBtn.current, { count: 7, spread: 0.8 });
         toast.success("Expense added");
+        // heads-up when this expense crosses 80% or 100% of a budget (email and push come from the server too)
+        const alerts = [];
+        if (limit > 0) alerts.push(["Overall budget", crossed(spentSoFar, spentSoFar + amountBase, limit), percent(spentSoFar + amountBase, limit)]);
+        if (catRow) alerts.push([`${picked?.name} budget`, crossed(catRow.spent, catRow.spent + amountBase, catRow.limit), percent(catRow.spent + amountBase, catRow.limit)]);
+        alerts.forEach(([scope, level, pct], i) => {
+          if (level === "none") return;
+          setTimeout(() => (level === "exceeded" ? toast.error(`${scope} exceeded`) : toast.warn(`${scope} at ${pct}%`)), 450 + i * 250);
+        });
         setTimeout(() => navigate("/list", { state: { fresh: res?.data?.id } }), 380);
       })
       .catch(() => {
@@ -254,6 +280,26 @@ export default function AddExpense() {
                 </p>
               )}
             </div>
+
+            {catRow && (
+              <div className="impact">
+                <div className="impact-top">
+                  <span>{picked?.name} limit</span>
+                  <strong>{money(Math.max(0, catAfter))} left</strong>
+                </div>
+                <div className="progress stack" aria-hidden="true">
+                  <span style={{ width: `${catUsedPct}%`, background: "var(--muted)" }} />
+                  <span style={{ width: `${catThisPct}%`, background: catAfter < 0 ? "var(--coral)" : accent || "var(--violet)" }} />
+                </div>
+                <p className={`impact-note ${catAfter < 0 ? "bad" : amountBase > 0 ? "good" : ""}`}>
+                  {amountBase <= 0
+                    ? `${money(catRow.limit - catRow.spent)} of ${money(catRow.limit)} still available.`
+                    : catAfter < 0
+                      ? `This puts ${picked?.name} ${money(-catAfter)} over its limit.`
+                      : `Fits the ${picked?.name} limit, leaving ${money(catAfter)}.`}
+                </p>
+              </div>
+            )}
           </section>
         </aside>
         </div>

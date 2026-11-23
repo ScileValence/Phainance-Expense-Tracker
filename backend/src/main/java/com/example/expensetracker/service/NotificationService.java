@@ -109,12 +109,46 @@ public class NotificationService {
         String when = dueLocal(r).format(WHEN) + " (" + zoneOf(r) + ")";
         String category = r.getCategory() == null ? null : r.getCategory().getName();
 
-        if (user.isEmailRemindersEnabled() && user.isEmailVerified()) {
+        if (canEmail(user, EmailKind.DUE_REMINDER)) {
             sendEmail(user, EmailTemplates.paymentDue(
                     appUrl, user.getUsername(), r.getTitle(), amount, category, when,
                     scheduleText(r), r.getNextDueDate() == null ? "" : r.nextOccurrence().format(DAY)));
         }
         sendPush(user, r.getTitle() + " is due", amount + " · " + when, "/recurring");
+    }
+
+    /**
+     * Queue a summary email. The scheduled one needs the person to have the summary switched on; a sample the
+     * person asked for only needs a verified address. Returns false when nothing was queued.
+     */
+    public boolean sendSummaryEmail(User user, EmailTemplates.Email mail, boolean scheduled) {
+        boolean allowed = scheduled ? canEmail(user, EmailKind.SUMMARY) : (user != null && user.isEmailVerified());
+        if (!allowed) return false;
+        CompletableFuture.runAsync(() -> sendEmail(user, mail));
+        return true;
+    }
+
+    /** Budget line crossed: email (if reminders are on) and push, in the background. */
+    public void notifyBudget(User user, String scope, String month, double spent, double limit, BudgetAlertPolicy.Level level) {
+        if (user == null || level == BudgetAlertPolicy.Level.NONE) return;
+
+        boolean exceeded = level == BudgetAlertPolicy.Level.EXCEEDED;
+        int percent = BudgetAlertPolicy.percent(spent, limit);
+        String spentText = formatInr(spent);
+        String limitText = formatInr(limit);
+        String leftText = formatInr(Math.abs(limit - spent));
+
+        String title = exceeded ? scope + " exceeded" : scope + " at " + percent + "%";
+        String body = spentText + " of " + limitText + " · " + month;
+
+        EmailTemplates.Email mail = canEmail(user, EmailKind.BUDGET_ALERT)
+                ? EmailTemplates.budgetAlert(appUrl, user.getUsername(), scope, month, spentText, limitText, leftText, percent, exceeded)
+                : null;
+
+        CompletableFuture.runAsync(() -> {
+            if (mail != null) sendEmail(user, mail);
+            sendPush(user, title, body, "/budget");
+        });
     }
 
     /** Email (no push) when a recurring payment is paused. */
@@ -129,28 +163,28 @@ public class NotificationService {
 
     /** Email when a paused recurring payment is resumed. */
     public void notifyResumed(User user, RecurringPayment r) {
-        if (!canEmail(user) || r == null) return;
+        if (!canEmail(user, EmailKind.PAYMENT_UPDATE) || r == null) return;
         queue(user, EmailTemplates.paymentResumed(appUrl, user.getUsername(), r.getTitle(), formatInr(r.getAmount()),
                 categoryName(r), scheduleText(r), dayOf(r.getNextDueDate())));
     }
 
     /** Email when a payment is marked as paid. {@code paid} is the date the expense was logged for, r is already rolled forward. */
     public void notifyPaid(User user, RecurringPayment r, LocalDate paid) {
-        if (!canEmail(user) || r == null) return;
+        if (!canEmail(user, EmailKind.PAYMENT_UPDATE) || r == null) return;
         queue(user, EmailTemplates.paymentPaid(appUrl, user.getUsername(), r.getTitle(), formatInr(r.getAmount()),
                 categoryName(r), scheduleText(r), dayOf(paid), dayOf(r.getNextDueDate())));
     }
 
     /** Email when one occurrence is skipped. {@code skipped} is the date that was skipped, r is already rolled forward. */
     public void notifySkipped(User user, RecurringPayment r, LocalDate skipped) {
-        if (!canEmail(user) || r == null) return;
+        if (!canEmail(user, EmailKind.PAYMENT_UPDATE) || r == null) return;
         queue(user, EmailTemplates.paymentSkipped(appUrl, user.getUsername(), r.getTitle(), formatInr(r.getAmount()),
                 categoryName(r), scheduleText(r), dayOf(skipped), dayOf(r.getNextDueDate())));
     }
 
     /** Email listing what changed. {@code before} comes from {@link #snapshot}, taken before the edit. No changes, no email. */
     public void notifyEdited(User user, RecurringPayment r, Map<String, String> before) {
-        if (!canEmail(user) || r == null || before == null) return;
+        if (!canEmail(user, EmailKind.PAYMENT_UPDATE) || r == null || before == null) return;
         Map<String, String> after = snapshot(r);
         List<String[]> changes = new ArrayList<>();
         before.forEach((label, old) -> {
@@ -174,7 +208,7 @@ public class NotificationService {
     }
 
     private void sendStatusEmail(User user, RecurringPayment r, boolean paused) {
-        if (!canEmail(user) || r == null) return;
+        if (!canEmail(user, EmailKind.PAYMENT_UPDATE) || r == null) return;
 
         String amount = formatInr(r.getAmount());
         String date = dayOf(r.getNextDueDate());
@@ -186,8 +220,9 @@ public class NotificationService {
     }
 
     // same gate as the due reminders: email alerts switched on and the address verified
-    private static boolean canEmail(User user) {
-        return user != null && user.isEmailRemindersEnabled() && user.isEmailVerified();
+    private static boolean canEmail(User user, EmailKind kind) {
+        return user != null && EmailGate.allows(user.isEmailVerified(), user.getEmailReminders(),
+                user.getEmailBudgetAlerts(), user.getEmailPaymentUpdates(), user.getSummaryFrequency(), kind);
     }
 
     // message is already built; send in the background so the request never waits on SMTP
@@ -203,7 +238,7 @@ public class NotificationService {
         return d == null ? "" : d.format(DAY);
     }
 
-    private static String formatInr(Double value) {
+    static String formatInr(Double value) {
         NumberFormat nf = NumberFormat.getNumberInstance(new Locale("en", "IN"));
         nf.setMinimumFractionDigits(2);
         nf.setMaximumFractionDigits(2);

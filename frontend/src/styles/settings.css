@@ -66,3 +66,9 @@
 .cat-add .input { flex: 1; min-width: 0; }
 
 .sub-label { margin: 16px 0 8px; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+
+/* email preferences */
+.email-pref { display: flex; align-items: center; gap: 14px; padding: 12px 0; border-top: 1px solid var(--line); }
+.email-pref:first-of-type { border-top: none; }
+.email-pref .setting-text span { display: block; margin-top: 2px; font-size: 0.8rem; color: var(--muted); line-height: 1.4; }
+.email-why { margin-bottom: 6px; }

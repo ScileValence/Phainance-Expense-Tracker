@@ -150,7 +150,11 @@ export async function guestAdapter(config) {
 
   // ----- expenses -----
   if (root === "expenses") {
-    if (method === "get") return ok(db.expenses.filter(inMonth));
+    if (method === "get") {
+      // optional explicit range, same as the server: ?from=YYYY-MM-DD&to=YYYY-MM-DD
+      if (q.from && q.to && q.from <= q.to) return ok(db.expenses.filter((e) => e.date >= q.from && e.date <= q.to));
+      return ok(db.expenses.filter(inMonth));
+    }
     if (method === "post") {
       const e = {
         id: db.nextId++,
@@ -183,6 +187,31 @@ export async function guestAdapter(config) {
   }
 
   // ----- budget -----
+  // standing monthly limit per category
+  if (root === "budget" && idRaw === "categories") {
+    db.categoryBudgets = db.categoryBudgets || {};
+    if (method === "get") {
+      const rows = Object.entries(db.categoryBudgets)
+        .map(([cid, limit]) => {
+          const c = db.categories.find((x) => x.id === Number(cid));
+          if (!c) return null;
+          return { categoryId: c.id, name: c.name, limit, spent: sum(db.expenses.filter((e) => inMonth(e) && e.category?.id === c.id)) };
+        })
+        .filter(Boolean);
+      return ok(rows);
+    }
+    const cid = Number(action);
+    if (!db.categories.some((x) => x.id === cid)) return fail(404, "Category not found");
+    if (method === "put") {
+      const limit = Number(body.limitAmount) || 0;
+      if (limit < 0) return fail(400, "Enter a valid amount");
+      if (limit > 0) db.categoryBudgets[cid] = limit;
+      else delete db.categoryBudgets[cid];
+      save(db);
+      return ok({ categoryId: cid, limit: Math.max(limit, 0) });
+    }
+  }
+
   if (root === "budget") {
     if (method === "get") {
       const spent = sum(db.expenses.filter(inMonth));

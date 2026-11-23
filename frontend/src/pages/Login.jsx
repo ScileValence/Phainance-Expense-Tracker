@@ -18,8 +18,9 @@ export default function Login() {
     try {
       const res = await api.post("/auth/login", { username, password });
       localStorage.setItem("token", res.data.token);
-    } catch {
-      setError("Invalid username or password");
+    } catch (err) {
+      // the server explains why (wrong password, or locked out after too many tries)
+      setError(err.response?.data?.message || "Couldn’t sign in. Check your connection and try again.");
       return;
     }
     try {

@@ -143,6 +143,99 @@ public final class EmailTemplates {
                 "Didn't resume this? Open the app and tap <strong>Pause</strong> on the payment.");
     }
 
+    /** Sent when spending crosses 80% or 100% of a budget. */
+    public static Email budgetAlert(
+            String appUrl, String username, String scope, String month,
+            String spent, String limit, String left, int percent, boolean exceeded
+    ) {
+        String color = exceeded ? "#E5533D" : "#E8A317";
+        String pillBg = exceeded ? "#FFE3DC" : "#FFF1D6";
+        String pillFg = exceeded ? "#B23A1E" : "#8A5A00";
+        String status = exceeded ? "Over budget" : "Nearly there";
+        String subject = exceeded ? scope + " exceeded for " + month : scope + " is at " + percent + "%";
+
+        int width = Math.max(4, Math.min(100, percent));
+        String bar = "<div style=\"height:10px;border-radius:999px;background:" + LINE + ";overflow:hidden;\">"
+                + "<div style=\"width:" + width + "%;height:10px;border-radius:999px;background:" + color + ";\"></div></div>";
+
+        String rows = row("Status", statusPill(status, pillBg, pillFg))
+                + row("Used", bar)
+                + row("Spent", esc(spent))
+                + row("Limit", esc(limit))
+                + row(exceeded ? "Over by" : "Left", esc(left))
+                + row("Month", esc(month));
+
+        String text = scope + " for " + month + ": " + percent + "% used.\n"
+                + "Spent " + spent + " of " + limit + (exceeded ? " (" + left + " over)." : " (" + left + " left).");
+
+        String intro = exceeded
+                ? "you've gone over your <strong>" + esc(scope) + "</strong> for " + esc(month) + "."
+                : "you've used " + percent + "% of your <strong>" + esc(scope) + "</strong> for " + esc(month) + ".";
+
+        return compose(appUrl, username, subject, exceeded ? "Budget exceeded" : "Budget alert", scope, percent + "%",
+                intro, text, rows, "Review budget",
+                "Want a different limit? Open <strong>Budget</strong> in the app to change it.", "/budget");
+    }
+
+    /** Everything the weekly/monthly summary shows, already formatted. {@code change}, {@code biggest} and {@code budget} may be null. */
+    public record SummaryData(String kind, String period, String total, String change, boolean up, int count,
+                              List<String[]> top, String biggest, String budget, List<String[]> upcoming) {}
+
+    /** The weekly or monthly summary. */
+    public static Email summary(String appUrl, String username, SummaryData d) {
+        String lower = d.kind().toLowerCase();
+        String subject = "Your " + lower + " summary: " + d.period();
+        boolean any = d.count() > 0;
+
+        StringBuilder rows = new StringBuilder();
+        StringBuilder text = new StringBuilder("Your " + lower + " summary for " + d.period() + "\n");
+        if (!any) {
+            rows.append(row("Spending", "No spending recorded"));
+            text.append("No spending recorded.\n");
+        } else {
+            String expenses = d.count() + (d.count() == 1 ? " expense" : " expenses");
+            rows.append(row("Expenses", expenses));
+            text.append("Spent ").append(d.total()).append(" across ").append(expenses).append(".\n");
+            if (!blank(d.change())) {
+                rows.append(row("Compared with before", "<span style=\"color:" + (d.up() ? "#B23A1E" : "#0E7A53") + ";\">" + esc(d.change()) + "</span>"));
+                text.append(d.change()).append(".\n");
+            }
+            if (!blank(d.biggest())) {
+                rows.append(row("Biggest", esc(d.biggest())));
+                text.append("Biggest: ").append(d.biggest()).append(".\n");
+            }
+        }
+        if (!blank(d.budget())) {
+            rows.append(row("Budget", esc(d.budget())));
+            text.append("Budget: ").append(d.budget()).append(".\n");
+        }
+        if (any && !d.top().isEmpty()) {
+            rows.append(sectionRow("Top categories"));
+            text.append("\nTop categories\n");
+            for (String[] t : d.top()) {
+                rows.append(row(esc(t[0]), esc(t[1]) + " <span style=\"color:" + MUTED + ";font-weight:400;\">" + esc(t[2]) + "%</span>"));
+                text.append("- ").append(t[0]).append(" ").append(t[1]).append(" (").append(t[2]).append("%)\n");
+            }
+        }
+        if (!d.upcoming().isEmpty()) {
+            rows.append(sectionRow("Due in the next 7 days"));
+            text.append("\nDue in the next 7 days\n");
+            for (String[] u : d.upcoming()) {
+                rows.append(row(esc(u[0]), esc(u[1]) + " <span style=\"color:" + MUTED + ";font-weight:400;\">" + esc(u[2]) + "</span>"));
+                text.append("- ").append(u[0]).append(" ").append(u[1]).append(" on ").append(u[2]).append("\n");
+            }
+        }
+
+        String intro = "here's your " + esc(lower) + " summary for <strong>" + esc(d.period()) + "</strong>.";
+        String footerText = "You're getting this because the " + lower + " summary is on. Change it in Settings > Emails in the app.";
+        String footerHtml = "You're getting this because the " + esc(lower) + " summary is on. Change it in <a href=\"" + esc(appUrl)
+                + "/dashboard\" style=\"color:" + MUTED + ";\">Settings &rarr; Emails</a> in the app.";
+
+        return composeWith(appUrl, username, subject, d.kind() + " summary", d.period(), any ? d.total() : "₹0",
+                intro, text.toString().trim(), rows.toString(), "Open Phainance",
+                "Spending is taken from the expenses you logged. Amounts are shown in INR.", "/dashboard", footerText, footerHtml);
+    }
+
     /** Sent when a recurring payment is marked as paid (an expense is logged). */
     public static Email paymentPaid(
             String appUrl, String username, String title, String amount,
@@ -245,6 +338,11 @@ public final class EmailTemplates {
                 + "<td style=\"padding:12px 0;border-bottom:1px solid " + LINE + ";font-size:15px;font-weight:600;color:" + INK + ";\">" + value + "</td></tr>";
     }
 
+    private static String sectionRow(String label) {
+        return "<tr><td colspan=\"2\" style=\"padding:22px 0 6px;border-bottom:1px solid " + LINE
+                + ";font-size:11px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:" + MUTED + ";\">" + esc(label) + "</td></tr>";
+    }
+
     private static boolean blank(String s) {
         return s == null || s.isBlank();
     }
@@ -254,19 +352,36 @@ public final class EmailTemplates {
             String appUrl, String username, String subject, String eyebrow, String title, String amount,
             String introHtml, String textBody, String rowsHtml, String cta, String noteHtml
     ) {
-        String text = "Hi " + username + ",\n\n" + textBody + "\n\n" + appUrl + "/recurring\n\n"
-                + "You're getting this because email reminders are on for your Phainance account. "
-                + "Turn them off in Recurring > Reminder alerts.\n\n— Phainance";
+        return compose(appUrl, username, subject, eyebrow, title, amount, introHtml, textBody, rowsHtml, cta, noteHtml, "/recurring");
+    }
+
+    private static Email compose(
+            String appUrl, String username, String subject, String eyebrow, String title, String amount,
+            String introHtml, String textBody, String rowsHtml, String cta, String noteHtml, String path
+    ) {
+        return composeWith(appUrl, username, subject, eyebrow, title, amount, introHtml, textBody, rowsHtml, cta, noteHtml, path,
+                "You're getting this because email reminders are on for your Phainance account. "
+                        + "Turn them off in Recurring > Reminder alerts.",
+                reminderFooter(appUrl));
+    }
+
+    private static Email composeWith(
+            String appUrl, String username, String subject, String eyebrow, String title, String amount,
+            String introHtml, String textBody, String rowsHtml, String cta, String noteHtml, String path,
+            String footerText, String footerHtml
+    ) {
+        String text = "Hi " + username + ",\n\n" + textBody + "\n\n" + appUrl + path + "\n\n"
+                + footerText + "\n\n— Phainance";
 
         String body = "<p style=\"margin:0 0 6px;font-size:13px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:" + MUTED + ";\">" + eyebrow + "</p>"
                 + "<h1 style=\"margin:0 0 4px;font-size:26px;line-height:1.2;color:" + INK + ";\">" + esc(title) + "</h1>"
                 + "<p style=\"margin:0 0 22px;font-size:40px;font-weight:700;letter-spacing:-0.03em;color:" + INK + ";\">" + esc(amount) + "</p>"
                 + "<p style=\"margin:0 0 20px;font-size:15px;line-height:1.6;color:" + INK + ";\">Hi " + esc(username) + ", " + introHtml + "</p>"
                 + "<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"margin:0 0 26px;border-top:1px solid " + LINE + ";\">" + rowsHtml + "</table>"
-                + button(appUrl + "/recurring", cta)
+                + button(appUrl + path, cta)
                 + "<p style=\"margin:22px 0 0;font-size:13px;line-height:1.6;color:" + MUTED + ";\">" + noteHtml + "</p>";
 
-        return new Email(subject, text, layout(eyebrow + ": " + title, body, reminderFooter(appUrl)));
+        return new Email(subject, text, layout(eyebrow + ": " + title, body, footerHtml));
     }
 
     private static String statusPill(String label, String bg, String fg) {

@@ -7,6 +7,8 @@ import com.example.expensetracker.repository.UserRepository;
 import com.example.expensetracker.service.JwtService;
 import com.example.expensetracker.service.EmailTemplates;
 import com.example.expensetracker.service.NotificationService;
+import com.example.expensetracker.service.SummaryPlanner;
+import com.example.expensetracker.service.SummaryService;
 import com.example.expensetracker.service.VerificationService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.ResponseEntity;
@@ -22,6 +24,8 @@ import java.util.Optional;
 public class NotificationController {
 
     private final NotificationService notifications;
+    private final SummaryService summaryService;
+    private final java.util.Map<Long, java.time.Instant> lastSample = new java.util.concurrent.ConcurrentHashMap<>();
     private final VerificationService verification;
     private final PushSubscriptionRepository subscriptions;
     private final JwtService jwtService;
@@ -29,12 +33,14 @@ public class NotificationController {
 
     public NotificationController(
             NotificationService notifications,
+            SummaryService summaryService,
             VerificationService verification,
             PushSubscriptionRepository subscriptions,
             JwtService jwtService,
             UserRepository userRepository
     ) {
         this.notifications = notifications;
+        this.summaryService = summaryService;
         this.verification = verification;
         this.subscriptions = subscriptions;
         this.jwtService = jwtService;
@@ -52,6 +58,9 @@ public class NotificationController {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("email", user.getEmail());
         m.put("emailReminders", user.isEmailRemindersEnabled());
+        m.put("emailBudgetAlerts", user.getEmailBudgetAlerts() == null || user.getEmailBudgetAlerts());
+        m.put("emailPaymentUpdates", user.getEmailPaymentUpdates() == null || user.getEmailPaymentUpdates());
+        m.put("summaryFrequency", SummaryPlanner.Frequency.parse(user.getSummaryFrequency()).name());
         m.put("emailVerified", user.isEmailVerified());
         m.put("emailConfigured", notifications.isEmailConfigured());
         m.put("pushConfigured", notifications.isPushConfigured());
@@ -71,10 +80,23 @@ public class NotificationController {
         User user = getUserFromRequest(request);
         if (user == null) return ResponseEntity.status(401).build();
 
-        if (dto.getEmailReminders() != null) {
-            user.setEmailReminders(dto.getEmailReminders());
-            userRepository.save(user);
+        if (dto.getSummaryFrequency() != null) {
+            String wanted = dto.getSummaryFrequency().trim();
+            boolean valid = wanted.equalsIgnoreCase("OFF") || wanted.equalsIgnoreCase("WEEKLY") || wanted.equalsIgnoreCase("MONTHLY");
+            if (!valid) return ResponseEntity.badRequest().body(Map.of("message", "Choose off, weekly or monthly"));
+
+            SummaryPlanner.Frequency now = SummaryPlanner.Frequency.parse(wanted);
+            if (now != SummaryPlanner.Frequency.parse(user.getSummaryFrequency())) {
+                user.setSummaryFrequency(now.name());
+                // switching it on never sends an old period: the first summary comes after the next period ends
+                user.setSummaryLastPeriod(now == SummaryPlanner.Frequency.OFF ? null
+                        : SummaryPlanner.lastCompleted(now, java.time.LocalDate.now()).end());
+            }
         }
+        if (dto.getEmailReminders() != null) user.setEmailReminders(dto.getEmailReminders());
+        if (dto.getEmailBudgetAlerts() != null) user.setEmailBudgetAlerts(dto.getEmailBudgetAlerts());
+        if (dto.getEmailPaymentUpdates() != null) user.setEmailPaymentUpdates(dto.getEmailPaymentUpdates());
+        userRepository.save(user);
         return ResponseEntity.ok(settingsOf(user));
     }
 
@@ -109,6 +131,28 @@ public class NotificationController {
         return ResponseEntity.ok(Map.of("subscribed", false));
     }
 
+    /** Sends the latest completed period's summary right now, so the email can be previewed. At most once a minute. */
+    @PostMapping("/summary/test")
+    public ResponseEntity<?> sendSampleSummary(HttpServletRequest request) {
+        User user = getUserFromRequest(request);
+        if (user == null) return ResponseEntity.status(401).build();
+        if (!user.isEmailVerified()) return ResponseEntity.badRequest().body(Map.of("message", "Verify your email first"));
+        if (!notifications.isEmailConfigured()) return ResponseEntity.ok(Map.of("sent", false, "reason", "Email is not set up on the server"));
+
+        java.time.Instant now = java.time.Instant.now();
+        java.time.Instant last = lastSample.get(user.getId());
+        if (last != null && java.time.Duration.between(last, now).getSeconds() < 60) {
+            return ResponseEntity.status(429).body(Map.of("message", "Wait a minute before sending another sample"));
+        }
+        lastSample.put(user.getId(), now);
+
+        SummaryPlanner.Frequency f = SummaryPlanner.Frequency.parse(user.getSummaryFrequency());
+        if (f == SummaryPlanner.Frequency.OFF) f = SummaryPlanner.Frequency.WEEKLY;
+        SummaryPlanner.Period period = SummaryPlanner.lastCompleted(f, java.time.LocalDate.now());
+        boolean queued = summaryService.send(user, f, period, false);
+        return ResponseEntity.ok(Map.of("sent", queued, "kind", f.name()));
+    }
+
     @PostMapping("/resend-verification")
     public ResponseEntity<?> resendVerification(HttpServletRequest request) {
         User user = getUserFromRequest(request);
@@ -137,8 +181,17 @@ public class NotificationController {
 
     public static class SettingsDTO {
         private Boolean emailReminders;
+        private Boolean emailBudgetAlerts;
+        private Boolean emailPaymentUpdates;
+        private String summaryFrequency;
         public Boolean getEmailReminders() { return emailReminders; }
         public void setEmailReminders(Boolean emailReminders) { this.emailReminders = emailReminders; }
+        public Boolean getEmailBudgetAlerts() { return emailBudgetAlerts; }
+        public void setEmailBudgetAlerts(Boolean emailBudgetAlerts) { this.emailBudgetAlerts = emailBudgetAlerts; }
+        public Boolean getEmailPaymentUpdates() { return emailPaymentUpdates; }
+        public void setEmailPaymentUpdates(Boolean emailPaymentUpdates) { this.emailPaymentUpdates = emailPaymentUpdates; }
+        public String getSummaryFrequency() { return summaryFrequency; }
+        public void setSummaryFrequency(String summaryFrequency) { this.summaryFrequency = summaryFrequency; }
     }
 
     public static class SubscribeDTO {

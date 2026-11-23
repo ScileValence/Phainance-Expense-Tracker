@@ -6,6 +6,7 @@ import com.example.expensetracker.model.User;
 import com.example.expensetracker.repository.CategoryRepository;
 import com.example.expensetracker.repository.RecurringPaymentRepository;
 import com.example.expensetracker.repository.UserRepository;
+import com.example.expensetracker.service.BudgetAlertService;
 import com.example.expensetracker.service.JwtService;
 import com.example.expensetracker.service.NotificationService;
 import com.example.expensetracker.service.RecurringPaymentService;
@@ -32,6 +33,7 @@ public class RecurringPaymentController {
     private final JwtService jwtService;
     private final UserRepository userRepository;
     private final NotificationService notifications;
+    private final BudgetAlertService budgetAlerts;
 
     public RecurringPaymentController(
             RecurringPaymentRepository recurringRepository,
@@ -39,7 +41,8 @@ public class RecurringPaymentController {
             CategoryRepository categoryRepository,
             JwtService jwtService,
             UserRepository userRepository,
-            NotificationService notifications
+            NotificationService notifications,
+            BudgetAlertService budgetAlerts
     ) {
         this.recurringRepository = recurringRepository;
         this.recurringService = recurringService;
@@ -47,6 +50,7 @@ public class RecurringPaymentController {
         this.jwtService = jwtService;
         this.userRepository = userRepository;
         this.notifications = notifications;
+        this.budgetAlerts = budgetAlerts;
     }
 
     private User getUserFromRequest(HttpServletRequest request) {
@@ -165,6 +169,7 @@ public class RecurringPaymentController {
         LocalDate paid = r.getNextDueDate();
         RecurringPayment saved = recurringService.confirm(r);
         notifications.notifyPaid(user, saved, paid); // paid -> email
+        budgetAlerts.expenseAdded(user, saved.getCategory(), paid, saved.getAmount()); // the logged expense may cross a budget
         return ResponseEntity.ok(saved);
     }
 

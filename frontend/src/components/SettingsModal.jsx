@@ -5,6 +5,7 @@ import { Download, Moon, Settings, Sun, Trash2, Upload, X } from "lucide-react";
 import Select from "./ui/Select";
 import CategoryManager from "./CategoryManager";
 import Collapse from "./ui/Collapse";
+import EmailPreferences from "./EmailPreferences";
 import { lastPoint, reducedMotion, revealTheme, rubber } from "../utils/motion";
 import { CURRENCIES, activeCode, setCurrency, useCurrency } from "../utils/currency";
 import { authState } from "../utils/auth";
@@ -237,6 +238,10 @@ function SettingsDialog({ onClose }) {
           <Collapse title="Categories">
             <CategoryManager />
             <p className="settings-note">A category in use can't be deleted. Move its expenses to another category first.</p>
+          </Collapse>
+
+          <Collapse title="Emails">
+            <EmailPreferences onLeave={requestClose} />
           </Collapse>
 
           <Collapse title="Your data">

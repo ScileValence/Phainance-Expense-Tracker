@@ -6,14 +6,73 @@ import StatusBanner from "./StatusBanner";
 import CountUp from "./CountUp";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
-import { ArrowLeft, Check, CalendarClock, TrendingUp, Wallet } from "lucide-react";
+import { ArrowLeft, Check, CalendarClock, TrendingUp, Wallet, Target } from "lucide-react";
 import { burstFrom } from "../utils/motion";
+import { useCategories } from "../utils/categories";
 import { colorFor } from "../utils/palette";
 import { money, toBase, toInput, currencySymbol } from "../utils/currency";
 import "../styles/dashboard.css";
 import "../styles/entry.css";
 
 const R = 74; // gauge radius
+
+// one category: spent so far, an optional monthly limit, saved when you leave the field or press Enter
+function LimitRow({ cat, spent, limit, onSave }) {
+  const [val, setVal] = useState(limit ? toInput(limit) : "");
+  const [saved, setSaved] = useState(false);
+  useEffect(() => setVal(limit ? toInput(limit) : ""), [limit]);
+
+  const commit = async () => {
+    const base = val === "" ? 0 : toBase(val);
+    if (base === (limit || 0)) return;
+    if (await onSave(cat.id, base)) {
+      setSaved(true);
+      setTimeout(() => setSaved(false), 900);
+    }
+  };
+
+  const ratio = limit > 0 ? spent / limit : 0;
+  const tone = ratio > 1 ? "var(--coral)" : ratio >= 0.8 ? "var(--amber)" : "var(--ok)";
+
+  return (
+    <div className="limit-row">
+      <div className="limit-top">
+        <span className="dot" style={{ background: colorFor(cat.name) }} />
+        <span className="name">{cat.name}</span>
+        {limit > 0 && (
+          <span className="limit-state" style={{ color: tone }}>
+            {ratio > 1 ? `Over by ${money(spent - limit)}` : `${Math.round(ratio * 100)}% used`}
+          </span>
+        )}
+        <span className="limit-field">
+          <input
+            className="input input-sm limit-input"
+            type="number"
+            min="0"
+            value={val}
+            placeholder="No limit"
+            aria-label={`Monthly limit for ${cat.name}`}
+            onChange={(e) => setVal(e.target.value)}
+            onBlur={commit}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                e.currentTarget.blur();
+              }
+            }}
+          />
+          {saved && <Check size={15} className="draw-check limit-ok" strokeWidth={3} />}
+        </span>
+      </div>
+      {limit > 0 && (
+        <div className="limit-bottom">
+          <div className="progress"><span style={{ width: `${Math.min(ratio * 100, 100)}%`, background: tone }} /></div>
+          <span>{money(spent)} of {money(limit)}</span>
+        </div>
+      )}
+    </div>
+  );
+}
 const C = 2 * Math.PI * R;
 
 export default function BudgetForm() {
@@ -21,6 +80,8 @@ export default function BudgetForm() {
   const [info, setInfo] = useState({ month: "", limit: 0, spent: 0 });
   const [cats, setCats] = useState([]);
   const [past, setPast] = useState([]); // spending in the months before the selected one
+  const [limits, setLimits] = useState([]); // monthly limit per category
+  const { categories } = useCategories();
   const [month, setMonth] = useState(
     localStorage.getItem("selectedMonth") || new Date().toISOString().slice(0, 7)
   );
@@ -51,10 +112,26 @@ export default function BudgetForm() {
       .get(`/analytics/trend?month=${month}&months=4`)
       .then((r) => live && setPast((r.data || []).slice(0, -1).filter((m) => m.amount > 0)))
       .catch(() => live && setPast([]));
+    api
+      .get(`/budget/categories?month=${month}`)
+      .then((r) => live && setLimits(r.data || []))
+      .catch(() => live && setLimits([]));
     return () => {
       live = false;
     };
   }, [month, info.spent]);
+
+  const saveLimit = async (categoryId, base) => {
+    try {
+      await api.put(`/budget/categories/${categoryId}`, { limitAmount: base });
+      const r = await api.get(`/budget/categories?month=${month}`);
+      setLimits(r.data || []);
+      return true;
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Could not save the limit");
+      return false;
+    }
+  };
 
   const [done, setDone] = useState(false);
   const saveBtn = useRef(null);
@@ -174,6 +251,28 @@ export default function BudgetForm() {
                   </div>
                 </>
               )}
+            </section>
+
+            <section className="card fade-in">
+              <div className="card-head" style={{ marginBottom: 6 }}>
+                <div>
+                  <h3 className="card-title">Category limits</h3>
+                  <div className="card-sub">A monthly cap per category</div>
+                </div>
+                <div className="insight-icon"><Target size={18} /></div>
+              </div>
+              <p className="card-lead">Limits apply every month. You get an alert at 80% and again when you go over.</p>
+              <div className="limit-list">
+                {categories.map((c) => (
+                  <LimitRow
+                    key={c.id}
+                    cat={c}
+                    spent={cats.find((x) => x.name === c.name)?.value || 0}
+                    limit={limits.find((l) => l.categoryId === c.id)?.limit || 0}
+                    onSave={saveLimit}
+                  />
+                ))}
+              </div>
             </section>
 
             <section className="card fade-in">
