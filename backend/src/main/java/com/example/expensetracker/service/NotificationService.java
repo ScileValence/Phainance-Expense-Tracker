@@ -151,6 +151,24 @@ public class NotificationService {
         });
     }
 
+    /** An automatic payment logged itself: one email (payment updates) and one push for the whole run. */
+    public void notifyAutoLogged(RecurringPayment r, List<java.time.LocalDate> dates) {
+        User user = r.getUser();
+        if (user == null || dates.isEmpty()) return;
+
+        String amount = formatInr(r.getAmount());
+        java.time.format.DateTimeFormatter shortDay = java.time.format.DateTimeFormatter.ofPattern("MMM d", java.util.Locale.ENGLISH);
+        List<String> labels = dates.stream().map(d -> d.format(shortDay)).toList();
+        java.time.LocalDate last = dates.get(dates.size() - 1);
+        String next = RecurringPayment.nextAfter(last, r.getIntervalValue(), r.getIntervalUnit(), r.getAnchorDay()).format(DAY);
+
+        if (canEmail(user, EmailKind.PAYMENT_UPDATE)) {
+            sendEmail(user, EmailTemplates.paymentAutoLogged(appUrl, user.getUsername(), r.getTitle(), amount,
+                    categoryName(r), scheduleText(r), labels, next));
+        }
+        sendPush(user, r.getTitle() + " logged", amount + " · " + String.join(", ", labels), "/list");
+    }
+
     /** Email (no push) when a recurring payment is paused. */
     public void notifyPaused(User user, RecurringPayment r) {
         sendStatusEmail(user, r, true);

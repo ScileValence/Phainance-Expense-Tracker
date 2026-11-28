@@ -3,6 +3,36 @@ _All notable changes to **Phainance** will be documented in this file._
 
 ---
 
+## Version 1.12.1 - Unreleased
+**Hotfix: migration V4 on older schemas**
+
+### Fixed
+- **The backend could not start on a database where `users.email_reminders` is `TINYINT(1)`** (typical of schemas created by an older version or by `database/schema.sql`): migration V4 failed with "Data too long for column 'email_budget_alerts'", left half its columns behind (MySQL cannot roll back `ALTER TABLE`), and Flyway then refused to start with "Detected failed migration to version 4". V4 now compares the flag as a number, so it works for `BIT(1)` and `TINYINT(1)`.
+- **V4 and V5 are safe to run again** after a partial run (columns are only added when missing, the copy step only fills empty columns, `CREATE TABLE IF NOT EXISTS`).
+- The migration test now runs against MySQL 8.0 and covers a `TINYINT(1)` reminder column, a repeated V4 and V5, and completing a partial run.
+
+### If you already hit the error
+Stop the backend and run, in MySQL: `DELETE FROM flyway_schema_history WHERE success = 0;` (see the README troubleshooting entry), then start it again. Nothing else needs to be repaired by hand.
+
+---
+
+## Version 1.12.0 - Unreleased
+**Recurring: automatic logging, history and a calendar**
+
+### Added
+- **Log it automatically.** A switch on each recurring payment (off by default) adds the expense by itself at the due time. Each occurrence is claimed with one atomic database update before it is logged, so it can never be logged twice, even with two server instances; missed occurrences are caught up (up to 12 per payment per run); budget alerts still fire; you get one message per run ("Rent was logged") instead of a due reminder. In guest mode the same happens when the list is loaded.
+- **History.** Each payment has a History button listing every occurrence that was paid, skipped or logged automatically, kept after the payment is deleted (`GET /api/recurring/{id}/history`).
+- **Upcoming bills calendar.** A List / Calendar switch on the Recurring page; a Monday-first month grid with each day's bills, the count and total due for the month, and a day list. The 31st clamps to the last day of short months.
+- A shared schedule module for the calendar and guest mode, checked against the server's date rules (same fixed cases, plus 20,000 random schedules compared with zero differences).
+
+### Fixed
+- The footer of payment-update and budget emails still pointed to the old Recurring switch; it now says where each kind is switched off (Settings, Emails).
+
+### Database
+- New migration `V5__recurring_history_autolog.sql` (`recurring_payments.auto_log`, table `recurring_events`).
+
+---
+
 ## Version 1.11.0 - Unreleased
 **Summary emails and email preferences**
 

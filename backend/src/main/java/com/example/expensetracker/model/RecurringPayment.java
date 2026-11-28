@@ -45,6 +45,10 @@ public class RecurringPayment {
 
     private boolean active = true;
 
+    // opt in: log the expense by itself when the payment falls due
+    @Column(name = "auto_log")
+    private boolean autoLog = false;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id")
     @JsonIgnore
@@ -54,16 +58,24 @@ public class RecurringPayment {
 
     /** The due date that follows the current one (does not change the entity). */
     public LocalDate nextOccurrence() {
-        int n = (intervalValue == null || intervalValue < 1) ? 1 : intervalValue;
-        IntervalUnit unit = intervalUnit == null ? IntervalUnit.MONTHS : intervalUnit;
-        switch (unit) {
+        return nextAfter(nextDueDate, intervalValue, intervalUnit, anchorDay);
+    }
+
+    /**
+     * The occurrence after {@code current}. A missing or non-positive interval means 1, a missing unit means months,
+     * and a monthly schedule returns to its anchor day after a short month (31st, 28th, 31st).
+     */
+    public static LocalDate nextAfter(LocalDate current, Integer every, IntervalUnit unit, Integer anchorDay) {
+        int n = (every == null || every < 1) ? 1 : every;
+        IntervalUnit u = unit == null ? IntervalUnit.MONTHS : unit;
+        switch (u) {
             case DAYS:
-                return nextDueDate.plusDays(n);
+                return current.plusDays(n);
             case WEEKS:
-                return nextDueDate.plusWeeks(n);
+                return current.plusWeeks(n);
             default: {
-                LocalDate next = nextDueDate.plusMonths(n);
-                int anchor = anchorDay == null ? nextDueDate.getDayOfMonth() : anchorDay;
+                LocalDate next = current.plusMonths(n);
+                int anchor = anchorDay == null ? current.getDayOfMonth() : anchorDay;
                 int last = YearMonth.from(next).lengthOfMonth();
                 return next.withDayOfMonth(Math.min(anchor, last));
             }
@@ -110,6 +122,8 @@ public class RecurringPayment {
     public void setNotifiedFor(LocalDateTime notifiedFor) { this.notifiedFor = notifiedFor; }
 
     public boolean isActive() { return active; }
+    public boolean isAutoLog() { return autoLog; }
+    public void setAutoLog(boolean autoLog) { this.autoLog = autoLog; }
     public void setActive(boolean active) { this.active = active; }
 
     public User getUser() { return user; }

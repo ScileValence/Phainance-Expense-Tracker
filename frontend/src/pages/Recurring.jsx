@@ -7,10 +7,12 @@ import { useCategories } from "../utils/categories";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 import {
-  Repeat, CalendarClock, Check, SkipForward, Pause, Play, Pencil, Trash2, X,
+  Repeat, CalendarClock, Check, SkipForward, Pause, Play, Pencil, Trash2, X, History,
 } from "lucide-react";
 import Sidebar from "../components/Sidebar";
 import NotificationSettings from "../components/NotificationSettings";
+import RecurringHistory from "../components/RecurringHistory";
+import BillsCalendar from "../components/BillsCalendar";
 import StatusBanner from "../components/StatusBanner";
 import { toBase, toInput, currencySymbol } from "../utils/currency";
 import { AppContext } from "../context/AppContext";
@@ -20,6 +22,7 @@ import {
 } from "../utils/recurring";
 import { burst, centerOf } from "../utils/motion";
 import "../styles/dashboard.css";
+import "../styles/entry.css";
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
 const emptyForm = () => ({
@@ -30,6 +33,7 @@ const emptyForm = () => ({
   intervalUnit: "MONTHS",
   nextDueDate: todayStr(),
   dueTime: "09:00",
+  autoLog: false,
 });
 
 export default function Recurring() {
@@ -39,6 +43,8 @@ export default function Recurring() {
   const [form, setForm] = useState(emptyForm());
   const [editId, setEditId] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [view, setView] = useState("list"); // list | calendar
+  const [openHistory, setOpenHistory] = useState(null); // id of the payment whose history is shown
 
   useEffect(() => {
     loadRecurring();
@@ -65,6 +71,7 @@ export default function Recurring() {
       intervalUnit: form.intervalUnit,
       nextDueDate: form.nextDueDate,
       dueTime: form.dueTime || "09:00",
+      autoLog: !!form.autoLog,
       timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     };
     try {
@@ -90,6 +97,7 @@ export default function Recurring() {
       intervalUnit: r.intervalUnit,
       nextDueDate: r.nextDueDate,
       dueTime: hhmm(r.dueTime),
+      autoLog: !!r.autoLog,
     });
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -194,7 +202,26 @@ export default function Recurring() {
                 </div>
               </div>
 
-              <p className="hint">You’ll get a reminder at that date and time. It’s only logged as an expense when you mark it paid.</p>
+              <div className="email-pref" style={{ borderTop: "none", paddingBottom: 4 }}>
+                <div className="setting-text">
+                  <strong>Log it automatically</strong>
+                  <span>Add the expense on the due date and time, without waiting for you to mark it paid</span>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={!!form.autoLog}
+                  aria-label="Log it automatically"
+                  className={`switch ${form.autoLog ? "on" : ""}`}
+                  onClick={() => setForm((f) => ({ ...f, autoLog: !f.autoLog }))}
+                />
+              </div>
+
+              <p className="hint">
+                {form.autoLog
+                  ? `It is logged as an expense at that date and time, and you get a message afterwards.${form.nextDueDate < todayStr() ? " Occurrences before today will be logged too." : ""}`
+                  : "You’ll get a reminder at that date and time. It’s only logged as an expense when you mark it paid."}
+              </p>
             </div>
 
             <div className="form-actions">
@@ -206,8 +233,14 @@ export default function Recurring() {
 
           {/* list */}
           <section className="rec-list stagger">
+            <div className="seg view-seg" role="group" aria-label="View">
+              <button type="button" className={view === "list" ? "on" : ""} onClick={() => setView("list")}>List</button>
+              <button type="button" className={view === "calendar" ? "on" : ""} onClick={() => setView("calendar")}>Calendar</button>
+            </div>
             <NotificationSettings />
-            {recurring.length === 0 ? (
+            {view === "calendar" ? (
+              <BillsCalendar payments={recurring} />
+            ) : recurring.length === 0 ? (
               <div className="card empty">
                 <Repeat size={36} />
                 <p>No recurring payments yet. Add your rent, subscriptions or bills.</p>
@@ -227,6 +260,7 @@ export default function Recurring() {
                       <div className="rec-title">
                         <strong>{r.title}</strong>
                         {!r.active && <span className="badge">Paused</span>}
+                        {r.autoLog && <span className="badge badge-auto">Auto</span>}
                         {due && <span className="badge badge-due">Due · {relativeDue(r, now)}</span>}
                         {soon && !due && <span className="badge badge-soon">{relativeDue(r, now)}</span>}
                       </div>
@@ -253,6 +287,14 @@ export default function Recurring() {
                             </button>
                           </>
                         )}
+                        <button
+                          className={`btn btn-ghost btn-sm btn-icon ${openHistory === r.id ? "is-on" : ""}`}
+                          onClick={() => setOpenHistory((id) => (id === r.id ? null : r.id))}
+                          aria-label="History"
+                          aria-expanded={openHistory === r.id}
+                        >
+                          <History size={14} />
+                        </button>
                         <button className="btn btn-ghost btn-sm btn-icon" onClick={() => toggle(r)} aria-label={r.active ? "Pause" : "Resume"}>
                           {r.active ? <Pause size={14} /> : <Play size={14} />}
                         </button>
@@ -260,6 +302,7 @@ export default function Recurring() {
                         <button className="btn btn-danger btn-sm btn-icon" onClick={() => remove(r)} aria-label="Delete"><Trash2 size={14} /></button>
                       </div>
                     </div>
+                    {openHistory === r.id && <RecurringHistory id={r.id} />}
                   </div>
                 );
               })

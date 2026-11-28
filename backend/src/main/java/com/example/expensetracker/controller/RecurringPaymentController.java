@@ -4,6 +4,7 @@ import com.example.expensetracker.model.RecurringPayment;
 import com.example.expensetracker.model.RecurringPayment.IntervalUnit;
 import com.example.expensetracker.model.User;
 import com.example.expensetracker.repository.CategoryRepository;
+import com.example.expensetracker.repository.RecurringEventRepository;
 import com.example.expensetracker.repository.RecurringPaymentRepository;
 import com.example.expensetracker.repository.UserRepository;
 import com.example.expensetracker.service.BudgetAlertService;
@@ -34,6 +35,7 @@ public class RecurringPaymentController {
     private final UserRepository userRepository;
     private final NotificationService notifications;
     private final BudgetAlertService budgetAlerts;
+    private final RecurringEventRepository events;
 
     public RecurringPaymentController(
             RecurringPaymentRepository recurringRepository,
@@ -42,7 +44,8 @@ public class RecurringPaymentController {
             JwtService jwtService,
             UserRepository userRepository,
             NotificationService notifications,
-            BudgetAlertService budgetAlerts
+            BudgetAlertService budgetAlerts,
+            RecurringEventRepository events
     ) {
         this.recurringRepository = recurringRepository;
         this.recurringService = recurringService;
@@ -51,6 +54,7 @@ public class RecurringPaymentController {
         this.userRepository = userRepository;
         this.notifications = notifications;
         this.budgetAlerts = budgetAlerts;
+        this.events = events;
     }
 
     private User getUserFromRequest(HttpServletRequest request) {
@@ -108,6 +112,8 @@ public class RecurringPaymentController {
             r.setNotifiedFor(null);
         }
 
+        if (dto.getAutoLog() != null) r.setAutoLog(dto.getAutoLog()); // not sent = leave as it is
+
         if (dto.getCategoryId() != null) {
             categoryRepository.findVisibleById(dto.getCategoryId(), user).ifPresent(r::setCategory);
         } else {
@@ -156,6 +162,14 @@ public class RecurringPaymentController {
         RecurringPayment saved = recurringRepository.save(r);
         notifications.notifyEdited(user, saved, before); // edited -> email (only if something changed)
         return ResponseEntity.ok(saved);
+    }
+
+    /** What happened to each occurrence of one payment, newest first (kept after the payment is deleted). */
+    @GetMapping("/{id}/history")
+    public ResponseEntity<?> history(@PathVariable Long id, HttpServletRequest request) {
+        User user = getUserFromRequest(request);
+        if (user == null) return ResponseEntity.status(401).build();
+        return ResponseEntity.ok(events.findTop50ByUserAndRecurringIdOrderByHappenedAtDescIdDesc(user, id));
     }
 
     @PostMapping("/{id}/confirm")
@@ -226,6 +240,10 @@ public class RecurringPaymentController {
         private LocalDate nextDueDate;
         private LocalTime dueTime;
         private String timeZone;
+        private Boolean autoLog;
+
+        public Boolean getAutoLog() { return autoLog; }
+        public void setAutoLog(Boolean autoLog) { this.autoLog = autoLog; }
 
         public String getTimeZone() { return timeZone; }
         public void setTimeZone(String timeZone) { this.timeZone = timeZone; }

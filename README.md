@@ -46,6 +46,9 @@ Version 1.7.0 is a redesign of the interface plus a set of new features: income 
 
 **Recurring payments and reminders**
 - Create recurring payments with a custom interval (every N days, weeks or months), a start date and a time of day.
+- **Log it automatically** (opt in per payment): the expense is added on the due date and time, in the time zone the payment was created in, without you marking it paid. A payment missed while the server was down is caught up (at most 12 occurrences per payment per minute), each occurrence is logged exactly once, paused payments are never logged, and you get a message afterwards instead of a due reminder. Choosing a start date in the past logs the earlier occurrences too.
+- **History** for every payment: each occurrence that was paid, skipped or logged automatically, kept even after the payment is deleted.
+- **Calendar view**: upcoming bills on a month grid with the number and total due, and a list for any day you pick (paused payments are not shown).
 - A reminder is sent at the due time by email and by web push, even when the app is closed.
 - Reminders never create an expense on their own: you confirm with "Mark paid" (which logs the expense and moves to the next occurrence) or "Skip".
 
@@ -242,7 +245,7 @@ All endpoints except `/api/auth/**` require `Authorization: Bearer <token>`.
 | Income | `GET /api/income?month=YYYY-MM`, `POST`, `PUT /{id}`, `DELETE /{id}` |
 | Budget | `GET /api/budget?month=YYYY-MM`, `POST`, `PUT` |
 | Analytics | `GET /api/analytics/category`, `/daily`, `/monthly`, `/budget-trend` |
-| Recurring | `GET /api/recurring`, `POST`, `PUT /{id}`, `DELETE /{id}`, `POST /{id}/confirm`, `/skip`, `/toggle` |
+| Recurring | `GET /api/recurring`, `POST`, `PUT /{id}` (body may carry `autoLog`), `DELETE /{id}`, `POST /{id}/confirm`, `/skip`, `/toggle`, `GET /{id}/history` |
 | Notifications | `GET`/`PUT /api/notifications/settings`, `POST /push/subscribe`, `/push/unsubscribe`, `/resend-verification`, `/test` |
 
 ---
@@ -262,6 +265,16 @@ The project is set up for local development. Before deploying publicly:
 ---
 
 ## Troubleshooting
+
+**The backend stops at start-up with "Detected failed migration to version N".** MySQL cannot roll back schema changes, so a migration that stops halfway leaves Flyway's history marked as failed, and Flyway refuses to start until that mark is cleared. The log of the first failed start shows the SQL error that caused it. Once the cause is fixed (or the corrected migration is in place), clear the mark and start again:
+
+```sql
+USE expense_tracker;
+SELECT version, description, success FROM flyway_schema_history;   -- the failed one has success = 0
+DELETE FROM flyway_schema_history WHERE success = 0;
+```
+
+Migrations 4 and 5 can safely run again after a partial run.
 
 | Problem | Likely cause |
 |---------|--------------|

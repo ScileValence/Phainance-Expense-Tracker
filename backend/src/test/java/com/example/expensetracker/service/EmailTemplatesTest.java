@@ -174,4 +174,65 @@ class EmailTemplatesTest {
         assertTrue(mail.text().contains(APP + "/budget"));
         assertFalse(mail.text().contains("/recurring"));
     }
+
+    // ---- automatically logged payments ----
+
+    @Test
+    void autoLoggedSubjectNamesThePayment() {
+        EmailTemplates.Email mail = EmailTemplates.paymentAutoLogged(APP, "Asha", "Rent", "₹12,000.00", "Housing",
+                "Repeats every month", List.of("Nov 1"), "Dec 1");
+        assertEquals("Rent was logged", mail.subject());
+    }
+
+    @Test
+    void autoLoggedListsTheDatesAndLinksToTheExpenses() {
+        EmailTemplates.Email mail = EmailTemplates.paymentAutoLogged(APP, "Asha", "Rent", "₹12,000.00", "Housing",
+                "Repeats every month", List.of("Oct 1", "Nov 1"), "Dec 1");
+        assertTrue(mail.html().contains("Oct 1, Nov 1"));
+        assertTrue(mail.html().contains("2 occurrences"));
+        assertTrue(mail.html().contains(APP + "/list"));
+        assertTrue(mail.text().contains(APP + "/list"));
+        assertTrue(mail.text().contains("Oct 1, Nov 1"));
+    }
+
+    @Test
+    void autoLoggedWithOneDateDoesNotTalkAboutOccurrences() {
+        EmailTemplates.Email mail = EmailTemplates.paymentAutoLogged(APP, "Asha", "Rent", "₹12,000.00", null,
+                "Repeats every month", List.of("Nov 1"), "Dec 1");
+        assertFalse(mail.html().contains("occurrences"));
+        assertFalse(mail.html().contains(">Category<"));
+    }
+
+    @Test
+    void autoLoggedEscapesTheTitle() {
+        EmailTemplates.Email mail = EmailTemplates.paymentAutoLogged(APP, "Asha", "<i>Rent</i>", "₹1.00", null,
+                "Repeats every month", List.of("Nov 1"), "Dec 1");
+        assertFalse(mail.html().contains("<i>Rent</i>"));
+        assertTrue(mail.html().contains("&lt;i&gt;Rent&lt;/i&gt;"));
+    }
+
+    // ---- footers say where each kind of email is switched off ----
+
+    @Test
+    void paymentEmailsPointToTheEmailsSettings() {
+        EmailTemplates.Email paused = EmailTemplates.paymentPaused(APP, "Asha", "Rent", "₹1.00", null, "Repeats every month", "Dec 1");
+        assertTrue(paused.text().contains("payment updates"));
+        assertTrue(paused.text().contains("Settings > Emails"));
+        assertFalse(paused.text().contains("Reminder alerts"));
+        assertFalse(paused.html().contains("Reminder alerts"));
+    }
+
+    @Test
+    void budgetEmailsSayBudgetAlerts() {
+        EmailTemplates.Email mail = EmailTemplates.budgetAlert(APP, "Asha", "Food budget", "November 2026", "₹1.00", "₹2.00", "₹1.00", 50, false);
+        assertTrue(mail.text().contains("budget alerts"));
+        assertTrue(mail.text().contains("Settings > Emails"));
+        assertFalse(mail.text().contains("Reminder alerts"));
+    }
+
+    @Test
+    void theDueReminderKeepsItsOwnFooter() {
+        EmailTemplates.Email due = EmailTemplates.paymentDue(APP, "Asha", "Rent", "₹1.00", null, "Nov 21, 9:00 AM (UTC)", "Repeats every month", "Dec 21");
+        assertTrue(due.text().contains("Reminder alerts") || due.html().contains("Reminder alerts"));
+    }
 }

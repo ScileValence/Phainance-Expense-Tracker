@@ -25,4 +25,18 @@ public interface RecurringPaymentRepository extends JpaRepository<RecurringPayme
     @Modifying
     @Query("update RecurringPayment r set r.notifiedFor = :ts where r.id = :id")
     int markNotified(@Param("id") Long id, @Param("ts") LocalDateTime ts);
+
+    // payments that log themselves (user is loaded eagerly: no open session in the scheduler)
+    @Query("select r from RecurringPayment r join fetch r.user where r.active = true and r.autoLog = true")
+    List<RecurringPayment> findActiveAutoLogWithUser();
+
+    /**
+     * Moves the due date from {@code expected} to {@code next} only if it is still {@code expected} and the payment is
+     * still active and automatic. Returns 1 for the one caller that gets it, 0 for anyone else, so an occurrence is
+     * never logged twice.
+     */
+    @Transactional
+    @Modifying
+    @Query("update RecurringPayment r set r.nextDueDate = :next where r.id = :id and r.nextDueDate = :expected and r.active = true and r.autoLog = true")
+    int claimOccurrence(@Param("id") Long id, @Param("expected") java.time.LocalDate expected, @Param("next") java.time.LocalDate next);
 }

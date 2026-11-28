@@ -33,6 +33,7 @@ public class ReminderScheduler {
         for (RecurringPayment r : active) {
             try {
                 if (r.getNextDueDate() == null) continue;
+                if (r.isAutoLog()) continue; // automatic payments get a "logged" message instead of a due reminder
 
                 LocalDateTime due = notifications.dueLocal(r);
                 if (due.atZone(notifications.zoneOf(r)).toInstant().isAfter(now)) continue; // not yet

@@ -8,6 +8,7 @@ import com.example.expensetracker.model.User;
 import com.example.expensetracker.repository.BudgetRepository;
 import com.example.expensetracker.repository.ExpenseRepository;
 import com.example.expensetracker.repository.IncomeRepository;
+import com.example.expensetracker.repository.RecurringEventRepository;
 import com.example.expensetracker.repository.RecurringPaymentRepository;
 import com.example.expensetracker.repository.UserRepository;
 import com.example.expensetracker.service.JwtService;
@@ -34,6 +35,7 @@ public class DataController {
     private final IncomeRepository incomeRepository;
     private final BudgetRepository budgetRepository;
     private final RecurringPaymentRepository recurringRepository;
+    private final RecurringEventRepository recurringEvents;
     private final JwtService jwtService;
     private final UserRepository userRepository;
 
@@ -42,6 +44,7 @@ public class DataController {
             IncomeRepository incomeRepository,
             BudgetRepository budgetRepository,
             RecurringPaymentRepository recurringRepository,
+            RecurringEventRepository recurringEvents,
             JwtService jwtService,
             UserRepository userRepository
     ) {
@@ -49,6 +52,7 @@ public class DataController {
         this.incomeRepository = incomeRepository;
         this.budgetRepository = budgetRepository;
         this.recurringRepository = recurringRepository;
+        this.recurringEvents = recurringEvents;
         this.jwtService = jwtService;
         this.userRepository = userRepository;
     }
@@ -120,7 +124,7 @@ public class DataController {
         return ResponseEntity.ok(out);
     }
 
-    /** Deletes every expense, income, budget and recurring payment of the signed-in user. */
+    /** Deletes every expense, income, budget, recurring payment and its history for the signed-in user. */
     @DeleteMapping
     @Transactional
     public ResponseEntity<?> clearAll(HttpServletRequest request) {
@@ -131,6 +135,7 @@ public class DataController {
         incomeRepository.deleteAll(incomeRepository.findByUser(user));
         budgetRepository.deleteAll(budgetRepository.findByUser(user));
         recurringRepository.deleteAll(recurringRepository.findByUserOrderByNextDueDateAscDueTimeAsc(user));
+        recurringEvents.deleteByUser(user); // the history of those payments goes too
 
         return ResponseEntity.ok(Map.of("message", "All data cleared"));
     }

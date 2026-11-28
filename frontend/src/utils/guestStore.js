@@ -1,3 +1,4 @@
+import { nextAfter, dueOccurrences } from "./recurringSchedule";
 // Guest mode: a tiny in-browser "backend" so the whole app works without an account.
 // It is plugged into axios (see api/axios.js) whenever there is no login token.
 const KEY = "guest:db";
@@ -41,17 +42,7 @@ const sum = (arr) => arr.reduce((s, e) => s + (e.amount || 0), 0);
 const catOf = (db, id) => db.categories.find((c) => c.id === Number(id)) || null;
 
 function nextOccurrence(r) {
-  const d = new Date(`${r.nextDueDate}T00:00:00`);
-  const n = r.intervalValue >= 1 ? r.intervalValue : 1;
-  if (r.intervalUnit === "DAYS") d.setDate(d.getDate() + n);
-  else if (r.intervalUnit === "WEEKS") d.setDate(d.getDate() + 7 * n);
-  else {
-    const y = d.getFullYear();
-    const m = d.getMonth() + n;
-    const last = new Date(y, m + 1, 0).getDate();
-    return fmtDate(new Date(y, m, Math.min(r.anchorDay || d.getDate(), last)));
-  }
-  return fmtDate(d);
+  return nextAfter(r.nextDueDate, r.intervalValue, r.intervalUnit, r.anchorDay);
 }
 
 class GuestError extends Error {
@@ -296,6 +287,43 @@ export async function guestAdapter(config) {
 
   // ----- recurring payments -----
   if (root === "recurring") {
+    db.recurringEvents = db.recurringEvents || [];
+    const record = (r, dueDate, act) =>
+      db.recurringEvents.push({
+        id: db.nextId++,
+        recurringId: r.id,
+        title: r.title,
+        amount: r.amount,
+        dueDate,
+        action: act,
+        happenedAt: new Date().toISOString(),
+      });
+
+    // what the server's scheduler does: automatic payments log themselves once they are due (guests have no server,
+    // so it happens whenever the list is loaded)
+    if (!idRaw && method === "get") {
+      let changed = false;
+      db.recurring.forEach((r) => {
+        if (!r.autoLog) return;
+        dueOccurrences(r, new Date(), 12).forEach((date) => {
+          db.expenses.push({ id: db.nextId++, amount: r.amount, description: r.title, date, category: r.category });
+          record(r, date, "AUTO_PAID");
+          r.nextDueDate = nextAfter(date, r.intervalValue, r.intervalUnit, r.anchorDay);
+          changed = true;
+        });
+      });
+      if (changed) save(db);
+    }
+
+    // history is kept even after the payment is deleted
+    if (idRaw && action === "history" && method === "get") {
+      const list = db.recurringEvents
+        .filter((e) => e.recurringId === id)
+        .sort((a, b) => (b.happenedAt + b.id).localeCompare(a.happenedAt + a.id))
+        .slice(0, 50);
+      return ok(list);
+    }
+
     const sorted = () =>
       [...db.recurring].sort((a, b) =>
         `${a.nextDueDate}${a.dueTime}`.localeCompare(`${b.nextDueDate}${b.dueTime}`)
@@ -316,6 +344,7 @@ export async function guestAdapter(config) {
         dueTime: `${(body.dueTime || "09:00").slice(0, 5)}:00`,
         anchorDay: Number(body.nextDueDate.slice(8, 10)),
         active: true,
+        autoLog: !!body.autoLog,
       };
       db.recurring.push(r);
       save(db);
@@ -337,16 +366,21 @@ export async function guestAdapter(config) {
         nextDueDate: body.nextDueDate,
         dueTime: `${(body.dueTime || "09:00").slice(0, 5)}:00`,
         anchorDay: Number(body.nextDueDate.slice(8, 10)),
+        ...(body.autoLog !== undefined ? { autoLog: !!body.autoLog } : {}),
       });
       save(db);
       return ok(r);
     }
     if (!action && method === "delete") {
+      db.recurringEvents.forEach((e) => {
+        if (e.recurringId === id) e.recurringId = null; // history stays, detached
+      });
       db.recurring = db.recurring.filter((x) => x.id !== id);
       save(db);
       return ok(null);
     }
     if (action === "confirm" && method === "post") {
+      record(r, r.nextDueDate, "PAID");
       db.expenses.push({
         id: db.nextId++,
         amount: r.amount,
@@ -359,6 +393,7 @@ export async function guestAdapter(config) {
       return ok(r);
     }
     if (action === "skip" && method === "post") {
+      record(r, r.nextDueDate, "SKIPPED");
       r.nextDueDate = nextOccurrence(r);
       save(db);
       return ok(r);

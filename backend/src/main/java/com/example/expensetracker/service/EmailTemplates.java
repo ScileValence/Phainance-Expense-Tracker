@@ -70,8 +70,7 @@ public final class EmailTemplates {
                 + schedule + ".\n"
                 + (nextDate == null || nextDate.isBlank() ? "" : "Next due: " + nextDate + " (kept while paused).\n")
                 + "\nResume it any time from Recurring in Phainance:\n" + appUrl + "/recurring\n\n"
-                + "You're getting this because email reminders are on for your Phainance account. "
-                + "Turn them off in Recurring > Reminder alerts.\n\n— Phainance";
+                + settingsFooterText("payment updates") + "\n\n— Phainance";
 
         String rows = row("Status", statusPill("Paused", "#FFF1D6", "#8A5A00"))
                 + (category == null ? "" : row("Category", esc(category)))
@@ -87,7 +86,7 @@ public final class EmailTemplates {
                 + button(appUrl + "/recurring", "Resume payment")
                 + "<p style=\"margin:22px 0 0;font-size:13px;line-height:1.6;color:" + MUTED + ";\">Didn't pause this? Open the app and tap <strong>Resume</strong> on the payment.</p>";
 
-        return new Email(subject, text, layout("Payment paused: " + title, body, reminderFooter(appUrl)));
+        return new Email(subject, text, layout("Payment paused: " + title, body, settingsFooterHtml(appUrl, "payment updates")));
     }
 
     /** Sent when a recurring payment is stopped (deleted). */
@@ -104,8 +103,7 @@ public final class EmailTemplates {
                 + (lastDate == null || lastDate.isBlank() ? "" : "Last scheduled for: " + lastDate + ".\n")
                 + "\nExpenses you already logged stay in your history. Stopped by mistake? Add it again in Recurring > New payment:\n"
                 + appUrl + "/recurring\n\n"
-                + "You're getting this because email reminders are on for your Phainance account. "
-                + "Turn them off in Recurring > Reminder alerts.\n\n— Phainance";
+                + settingsFooterText("payment updates") + "\n\n— Phainance";
 
         String rows = row("Status", statusPill("Stopped", "#FFE3DC", "#B23A1E"))
                 + (category == null ? "" : row("Category", esc(category)))
@@ -121,7 +119,7 @@ public final class EmailTemplates {
                 + button(appUrl + "/recurring", "Open Phainance")
                 + "<p style=\"margin:22px 0 0;font-size:13px;line-height:1.6;color:" + MUTED + ";\">Stopped by mistake? Add it again from <strong>Recurring &rarr; New payment</strong>.</p>";
 
-        return new Email(subject, text, layout("Payment stopped: " + title, body, reminderFooter(appUrl)));
+        return new Email(subject, text, layout("Payment stopped: " + title, body, settingsFooterHtml(appUrl, "payment updates")));
     }
 
     /** Sent when a paused recurring payment is resumed. */
@@ -172,9 +170,10 @@ public final class EmailTemplates {
                 ? "you've gone over your <strong>" + esc(scope) + "</strong> for " + esc(month) + "."
                 : "you've used " + percent + "% of your <strong>" + esc(scope) + "</strong> for " + esc(month) + ".";
 
-        return compose(appUrl, username, subject, exceeded ? "Budget exceeded" : "Budget alert", scope, percent + "%",
+        return composeWith(appUrl, username, subject, exceeded ? "Budget exceeded" : "Budget alert", scope, percent + "%",
                 intro, text, rows, "Review budget",
-                "Want a different limit? Open <strong>Budget</strong> in the app to change it.", "/budget");
+                "Want a different limit? Open <strong>Budget</strong> in the app to change it.", "/budget",
+                settingsFooterText("budget alerts"), settingsFooterHtml(appUrl, "budget alerts"));
     }
 
     /** Everything the weekly/monthly summary shows, already formatted. {@code change}, {@code biggest} and {@code budget} may be null. */
@@ -256,6 +255,32 @@ public final class EmailTemplates {
                 "<strong>" + esc(title) + "</strong> was marked as paid. We logged it as an expense and moved the next reminder forward.",
                 text, rows, "Open Phainance",
                 "Marked paid by mistake? Open <strong>Expenses</strong> in the app and delete the entry.");
+    }
+
+    /** Sent when the app logged one or more occurrences of a payment on its own. */
+    public static Email paymentAutoLogged(
+            String appUrl, String username, String title, String amount,
+            String category, String schedule, List<String> dates, String nextDate
+    ) {
+        String joined = String.join(", ", dates);
+        boolean several = dates.size() > 1;
+        String rows = row("Status", statusPill("Logged", "#DDF5E9", "#0E7A53"))
+                + row(several ? "Dates" : "Date", esc(joined))
+                + (several ? row("Logged", dates.size() + " occurrences") : "")
+                + (category == null ? "" : row("Category", esc(category)))
+                + row("Repeats", esc(schedule))
+                + (blank(nextDate) ? "" : row("Next due", esc(nextDate)));
+        String text = title + " (" + amount + ") was logged as an expense automatically"
+                + (several ? " for " + dates.size() + " occurrences" : "") + ".\n"
+                + "Date: " + joined + "\n"
+                + (category == null ? "" : "Category: " + category + "\n")
+                + schedule + "."
+                + (blank(nextDate) ? "" : "\nNext due: " + nextDate + ".");
+        String intro = "<strong>" + esc(title) + "</strong> was logged as an expense automatically"
+                + (several ? " for " + dates.size() + " occurrences" : "") + ". You didn't have to do anything.";
+        return compose(appUrl, username, title + " was logged", "Logged automatically", title, amount,
+                intro, text, rows, "See your expenses",
+                "Want to confirm payments yourself? Turn off <strong>Log it automatically</strong> when you edit the payment.", "/list");
     }
 
     /** Sent when one occurrence of a recurring payment is skipped. */
@@ -343,6 +368,15 @@ public final class EmailTemplates {
                 + ";font-size:11px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:" + MUTED + ";\">" + esc(label) + "</td></tr>";
     }
 
+    private static String settingsFooterText(String what) {
+        return "You're getting this because " + what + " are on. Change it in Settings > Emails in the app.";
+    }
+
+    private static String settingsFooterHtml(String appUrl, String what) {
+        return "You're getting this because " + esc(what) + " are on. Change it in <a href=\"" + esc(appUrl)
+                + "/dashboard\" style=\"color:" + MUTED + ";\">Settings &rarr; Emails</a> in the app.";
+    }
+
     private static boolean blank(String s) {
         return s == null || s.isBlank();
     }
@@ -360,9 +394,7 @@ public final class EmailTemplates {
             String introHtml, String textBody, String rowsHtml, String cta, String noteHtml, String path
     ) {
         return composeWith(appUrl, username, subject, eyebrow, title, amount, introHtml, textBody, rowsHtml, cta, noteHtml, path,
-                "You're getting this because email reminders are on for your Phainance account. "
-                        + "Turn them off in Recurring > Reminder alerts.",
-                reminderFooter(appUrl));
+                settingsFooterText("payment updates"), settingsFooterHtml(appUrl, "payment updates"));
     }
 
     private static Email composeWith(
